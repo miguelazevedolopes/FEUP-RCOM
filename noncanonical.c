@@ -5,15 +5,16 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
 
-#define FLAG 0x7E; //flag
-#define A 0x03; // campo de endere�o no emissor
-#define SET_C 0x03;
+#define FLAG 0x7E //flag
+#define A 0x03 // campo de endere�o no emissor
+#define SET_C 0x03
 #define UA_C 0x05
 
 
@@ -21,11 +22,11 @@ int main(int argc, char** argv)
 {
   int fd,c, res;
   struct termios oldtio,newtio;
-  char buf[255];
+  char buf;
 
   if ( (argc < 2) || 
-        ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-        (strcmp("/dev/ttyS1", argv[1])!=0) )) {
+        ((strcmp("/dev/ttyS10", argv[1])!=0) && 
+        (strcmp("/dev/ttyS11", argv[1])!=0) )) {
     printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
     exit(1);
   }
@@ -77,10 +78,10 @@ int main(int argc, char** argv)
 
   volatile int STOP=FALSE;
 
-  bool FLAG_RCV=FALSE;
-  bool A_RCV=FALSE;
-  bool C_RCV=FALSE;
-  bool BCC_OK=FALSE;
+  int FLAG_RCV=FALSE;
+  int A_RCV=FALSE;
+  int C_RCV=FALSE;
+  int BCC_OK=FALSE;
 
   
   while (STOP==FALSE) {       /* loop for input */
@@ -94,6 +95,7 @@ int main(int argc, char** argv)
     // printf("%x\n",buf[4]);
     // if (buf[0] == F && buf[1] == A && buf[2] == 0x03 && buf[3] == (A^(0x03)) &&  buf[4] == F) STOP=TRUE;
     res = read(fd,buf,1);
+    printf("%c",buf);
     switch (buf)
     {
     case FLAG:
@@ -102,13 +104,11 @@ int main(int argc, char** argv)
         STOP=TRUE;
       }
       break;
-    case A:
-      if(FLAG_RCV)
+    case A: 
+      if(FLAG_RCV&&!A_RCV)
         A_RCV=TRUE;
-      break;
-    case SET_C:
-      if(FLAG_RCV&&A_RCV)
-        A_RCV=TRUE;
+      else if(FLAG_RCV&&A_RCV)
+        C_RCV=TRUE;
       break;
     case (A^SET_C):
       if(FLAG_RCV&&A_RCV&&C_RCV){
