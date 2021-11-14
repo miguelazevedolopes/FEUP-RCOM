@@ -14,8 +14,10 @@
 #define FALSE 0
 #define TRUE 1
 
-volatile int STOP=FALSE;
-
+#define FLAG 0x7E //flag
+#define A 0x03 // campo de endere�o no emissor
+#define SET_C 0x03
+#define UA_C 0x05
 int flag=1, conta=1;
 void atende()                   // atende alarme
 {
@@ -82,46 +84,64 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-
     
     
-    unsigned char F = 0x7E; //flag
-    unsigned char A = 0x03; // campo de endereço no emissor
-    unsigned char C = 0x03; // SET UP- campo de controlo
-    unsigned char BCC =  A^C;
-    
-    unsigned char set [5];
-    set[0] = F;
+    char set [5];
+    set[0] = FLAG;
     set[1] = A;
-    set[2] = C;
-    set[3] = BCC;
-    set[4] = F;
-    
-    unsigned char miguel [5];
-    (void) signal(SIGALRM, atende);  // instala  rotina que atende interrupcao
-    while(conta < 4){
-      if(flag){
+    set[2] = SET_C;
+    set[3] = A^SET_C;
+    set[4] = FLAG;
 
-        res = write(fd,set,5);    
+    volatile int STOP=FALSE;
 
-        alarm(3);  
-        res = read(fd,miguel,5);
+    int FLAG_RCV=FALSE;
+    int A_RCV=FALSE;
+    int C_RCV=FALSE;
+    int BCC_OK=FALSE;
       
-        if(miguel[0] == F && miguel[1] == A && miguel[2] == 0x05 && miguel[3] == (A^(0x05)) &&  miguel[4] == F) {
-          printf("correu tudo bem");
-          break;
-        }
+    (void) signal(SIGALRM, atende);  // instala  rotina que atende interrupcao
+    while(STOP==FALSE && conta < 4){
+      if(flag){
+        for (int i=0;i<=4;i++){
+          write(fd,&set[i],1);
+        }    
+        alarm(3);  
         flag=0;
+      }
+      res = read(fd,buf,1);
+      
+      switch (buf[0]) {
+        case FLAG:
+          FLAG_RCV=TRUE;
+          if(A_RCV&&C_RCV&&BCC_OK&&FLAG_RCV){
+            STOP=TRUE;
+          }
+          printf("%x\n",buf[0]);
+          break;
+        case A: 
+          if(FLAG_RCV&&!A_RCV)
+            A_RCV=TRUE;
+          printf("%x\n",buf[0]);
+          break;
+        case UA_C:
+          if(FLAG_RCV&&A_RCV)
+              C_RCV=TRUE;
+          break;
+        case (A^UA_C):
+          if(FLAG_RCV&&A_RCV&&C_RCV){
+            BCC_OK=TRUE;
+            printf("%x\n",buf[0]);
+          }
+
+          break;
+        default:
+          break;
       }
     }
     
     if (conta == 4) printf("correu mal");
-    printf("%x\n",miguel[0]);
-    printf("%x\n",miguel[1]);
-    printf("%x\n",miguel[2]);
-    printf("%x\n",miguel[3]);
-    printf("%x\n",miguel[4]);
-    
+
     sleep(1);
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
       perror("tcsetattr");

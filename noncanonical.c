@@ -96,43 +96,45 @@ int main(int argc, char** argv)
     // printf("%x\n",buf[3]);
     // printf("%x\n",buf[4]);
     // if (buf[0] == F && buf[1] == A && buf[2] == 0x03 && buf[3] == (A^(0x03)) &&  buf[4] == F) STOP=TRUE;
-    res = read(fd,buf,1);
-    printf("%c\n",buf[0]);
+    res = read(fd,buf,2);
+    printf("%x\n",buf[0]);
     switch (buf[0])
     {
-    case FLAG:
-      FLAG_RCV=TRUE;
-      if(A_RCV&&C_RCV&&BCC_OK&&FLAG_RCV){
-        STOP=TRUE;
-      }
-      break;
-    case A: 
-      if(FLAG_RCV&&!A_RCV)
-        A_RCV=TRUE;
-      else if(FLAG_RCV&&A_RCV)
-        C_RCV=TRUE;
-      break;
-    case (A^SET_C):
-      if(FLAG_RCV&&A_RCV&&C_RCV){
-        BCC_OK=TRUE;
-      }
-      break;
-    default:
-      break;
+      case FLAG:
+        FLAG_RCV=TRUE;
+        if(A_RCV&&C_RCV&&BCC_OK&&FLAG_RCV){
+          STOP=TRUE;
+        }
+        break;
+      case A: 
+        if(FLAG_RCV&&!A_RCV)
+          A_RCV=TRUE;
+        else if(FLAG_RCV&&A_RCV)
+          C_RCV=TRUE;
+        break;
+      case (A^SET_C):
+        if(FLAG_RCV&&A_RCV&&C_RCV){
+          BCC_OK=TRUE;
+        }
+        break;
+      default:
+        break;
     }
   }
-  
+  printf("saiu");
   
 
-  unsigned char set [5];
+  char set [5];
   set[0] = FLAG;
   set[1] = A;
   set[2] = UA_C;
   set[3] = A^UA_C;
   set[4] = FLAG;
 
-  write(fd,set,5);
-
+  for (int i=0;i<=4;i++){
+    write(fd,&set[i],1);
+  }
+  
   /* 
     O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
   */
