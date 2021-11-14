@@ -5,7 +5,9 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
+#include <signal.h>
 
 #define BAUDRATE B38400
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
@@ -22,7 +24,7 @@ int main(int argc, char** argv)
 {
   int fd,c, res;
   struct termios oldtio,newtio;
-  char buf;
+  char buf [255];
 
   if ( (argc < 2) || 
         ((strcmp("/dev/ttyS10", argv[1])!=0) && 
@@ -95,8 +97,8 @@ int main(int argc, char** argv)
     // printf("%x\n",buf[4]);
     // if (buf[0] == F && buf[1] == A && buf[2] == 0x03 && buf[3] == (A^(0x03)) &&  buf[4] == F) STOP=TRUE;
     res = read(fd,buf,1);
-    printf("%c",buf);
-    switch (buf)
+    printf("%c\n",buf[0]);
+    switch (buf[0])
     {
     case FLAG:
       FLAG_RCV=TRUE;

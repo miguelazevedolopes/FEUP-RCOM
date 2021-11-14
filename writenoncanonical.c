@@ -100,21 +100,19 @@ int main(int argc, char** argv)
     unsigned char miguel [5];
     (void) signal(SIGALRM, atende);  // instala  rotina que atende interrupcao
     while(conta < 4){
-        if(flag){
+      if(flag){
 
-          //res = write(fd,set,5);    
+        res = write(fd,set,5);    
 
-          alarm(3);  
-          //res = read(fd,miguel,5);
-          
-          //printf("adeus");
-                         // activa alarme de 3s
-          if(miguel[0] == F && miguel[1] == A && miguel[2] == 0x05 && miguel[3] == (A^(0x05)) &&  miguel[4] == F) {
-            printf("correu tudo bem");
-            break;
-          }
-           flag=0;
-       }
+        alarm(3);  
+        res = read(fd,miguel,5);
+      
+        if(miguel[0] == F && miguel[1] == A && miguel[2] == 0x05 && miguel[3] == (A^(0x05)) &&  miguel[4] == F) {
+          printf("correu tudo bem");
+          break;
+        }
+        flag=0;
+      }
     }
     
     if (conta == 4) printf("correu mal");
