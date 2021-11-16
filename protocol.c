@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <limits.h>
 
 
 #define FALSE 0
@@ -27,6 +28,7 @@
 #define RR1 2
 #define REJ0 3
 #define REJ1 3
+#define NONE 0xFF
 
 #define NUMBER_ATTEMPTS 3
 #define ALARM_WAIT_TIME 3
@@ -35,10 +37,11 @@ struct linkLayer {
     char port[20]; /*Dispositivo /dev/ttySx, x = 0, 1*/
     int baudRate; /*Velocidade de transmissão*/
     unsigned int sequenceNumber;   /*Número de sequência da trama: 0, 1*/
-    unsigned int timeout; /*Valor do temporizador: 1 s*/
+    unsigned int timeout; /*Valor do temporizador
+    }: 1 s*/
     unsigned int numTransmissions; /*Número de tentativas em caso de falha*/
-    char frame[MAX_SIZE]; /*Trama*/
-}
+    char frame[CHAR_MAX]; /*Trama*/
+};
 
 struct linkLayer l1;
 
@@ -53,13 +56,13 @@ void alarmHandler()                   // atende alarme
 }
 
 //Creates Supervision and Unnumbered Frames
-int createSuperVisionFrame (int option, char controlField){
+int createSuperVisionFrame (int user, int controlField){
     l1.frame[0] = FLAG;
-    if(option == TRASMITTER){
+    if(user == TRASMITTER){
         if (controlField == (SET || DISC)) l1.frame[1]=0x03; 
         else if(controlField == (UA || RR0 || RR1 || REJ0 || REJ1 )) l1.frame[1]=0x01;
     }
-    else if(option == RECEIVER){
+    else if(user == RECEIVER){
         if (controlField == (SET || DISC)) l1.frame[1]=0x01; 
         else if(controlField == (UA || RR0 || RR1 || REJ0 || REJ1 )) l1.frame[1]=0x03;
     }
@@ -69,16 +72,16 @@ int createSuperVisionFrame (int option, char controlField){
 }
 
 
-int sendFrame(int fd, int frameSize,char responseControlField){
+int sendFrame(int fd, int frameSize, char responseControlField){
     char responseBuffer[5];
 
     int FLAG_RCV=FALSE;
     int A_RCV=FALSE;
     int C_RCV=FALSE;
     int BCC_OK=FALSE;
-    
     int STOP = FALSE;
     while (!STOP && try<=NUMBER_ATTEMPTS){
+        
         if(flag){
             for (int i=0;i <= frameSize;i++){
                 write(fd,&l1.frame[i],1);
@@ -86,40 +89,78 @@ int sendFrame(int fd, int frameSize,char responseControlField){
             alarm(ALARM_WAIT_TIME);
             flag=0;
         }
-        read(fd,responseBuffer,1);
-        switch (responseBuffer[0]) {
-            case FLAG:
+
+        if(responseControlField==NONE) STOP=TRUE;
+
+        else{
+            read(fd,responseBuffer,1);
+            if (responseBuffer[0]==FLAG) {
                 FLAG_RCV=TRUE;
                 if(A_RCV&&C_RCV&&BCC_OK&&FLAG_RCV){
                     STOP=TRUE;
                 }
-                printf("%x\n",buf[0]);
-                break;
-            case (0x03): 
+                printf("%x\n",responseBuffer[0]);
+            }
+            else if (responseBuffer[0]==0x03){
                 if(FLAG_RCV&&!A_RCV)
                     A_RCV=TRUE;
-                printf("%x\n",buf[0]);
-                break;
-            case responseControlField:
+                printf("%x\n",responseBuffer[0]);
+            }
+            else if (responseBuffer[0]==responseControlField){
                 if(FLAG_RCV&&A_RCV)
                     C_RCV=TRUE;
-                break;
-            case (0x03^responseControlField):
+            }          
+            else if (responseBuffer[0]==0x03^responseControlField){
                 if(FLAG_RCV&&A_RCV&&C_RCV){
                     BCC_OK=TRUE;
-                    printf("%x\n",buf[0]);
+                    printf("%x\n",responseBuffer[0]);
                 }
-                break;
-            default:
-                break;
+            }               
+
         }
+        
     }
     if(try==NUMBER_ATTEMPTS) return -1;
     else return 0;
 }
 
+int receiveFrame(int fd, char controlField){
 
-int llopen(int port, int option){
+    int FLAG_RCV=FALSE;
+    int A_RCV=FALSE;
+    int C_RCV=FALSE;
+    int BCC_OK=FALSE;
+    int STOP = FALSE;
+
+    char responseBuffer[5];
+    while(!STOP){
+        read(fd,responseBuffer,1);
+        if (responseBuffer[0]==FLAG) {
+            FLAG_RCV=TRUE;
+            if(A_RCV&&C_RCV&&BCC_OK&&FLAG_RCV){
+                STOP=TRUE;
+            }
+            printf("%x\n",responseBuffer[0]);
+        }
+        else if (responseBuffer[0]==0x03){
+            if(FLAG_RCV&&!A_RCV)
+                A_RCV=TRUE;
+            printf("%x\n",responseBuffer[0]);
+        }
+        else if (responseBuffer[0]==controlField){
+            if(FLAG_RCV&&A_RCV)
+                C_RCV=TRUE;
+        }          
+        else if (responseBuffer[0]==(0x03^controlField)){
+            if(FLAG_RCV&&A_RCV&&C_RCV){
+                BCC_OK=TRUE;
+                printf("%x\n",responseBuffer[0]);
+            }
+        }
+    }
+}
+
+int llopen(char* port, int user){
     int fd;
     struct termios oldtio,newtio;
     fd = open(port, O_RDWR | O_NOCTTY );
@@ -127,10 +168,10 @@ int llopen(int port, int option){
         perror(port);
         exit(-1); 
     }
-    if(option == TRASMITTER){
+    if(user == TRASMITTER){
         (void) signal(SIGALRM, alarmHandler); //Alarm setup
 
-        createSuperVisionFrame(option,SET); //Creates the frame to send
+        createSuperVisionFrame(TRASMITTER,SET); //Creates the frame to send
 
         if (sendFrame(fd, SUPERVISION_FRAME_SIZE, UA)<0){ //Sends the frame to the receiver
             printf("No response received. Gave up after %d tries",NUMBER_ATTEMPTS);
@@ -138,12 +179,31 @@ int llopen(int port, int option){
         }
 
     }
-    else if(option == RECEIVER){
-        createSuperVisionFrame(option,UA);
-
-        if(sendFrame(fd, SUPERVISION_FRAME_SIZE,))
+    else if(user == RECEIVER){
+        createSuperVisionFrame(TRASMITTER,SET);
+        receiveFrame(fd,SET);
+        createSuperVisionFrame(RECEIVER,UA);
+        sendFrame(fd, SUPERVISION_FRAME_SIZE,NONE);
+        
     }
 
 
     return 0;
+}
+
+int main(int argc, char** argv)
+{
+    int fd,c, res;
+    struct termios oldtio,newtio;
+    char buf[255];
+    int i, sum = 0, speed = 0;
+    
+    if ( (argc < 2) || 
+           ((strcmp("/dev/ttyS10", argv[1])!=0) && 
+            (strcmp("/dev/ttyS11", argv[1])!=0) )) {
+      printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
+      exit(1);
+    }
+
+    llopen(argv[1],RECEIVER);
 }
