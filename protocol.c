@@ -7,31 +7,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <limits.h>
-
-#define BAUDRATE B38400
-
-#define FALSE 0
-#define TRUE 1
-
-#define TRASMITTER 0
-#define RECEIVER 1
-
-#define FLAG 0x7E
-#define SUPERVISION_FRAME_SIZE 5
-//COMANDOS SET E DISC
-#define SET 0x03
-#define DISC 0x11
-
-//RESPOSTAS UA RR REJ
-#define UA 0x07
-#define RR0 2
-#define RR1 2
-#define REJ0 3
-#define REJ1 3
-#define NONE 0xFF
-
-#define NUMBER_ATTEMPTS 3
-#define ALARM_WAIT_TIME 3
+#include "macros.h"
 
 struct linkLayer
 {
@@ -55,6 +31,7 @@ void alarmHandler() // atende alarme
     try++;
 }
 
+int buffedDataSize = 0;
 //Creates Supervision and Unnumbered Frames
 int createSuperVisionFrame(int user, int controlField)
 {
@@ -266,6 +243,83 @@ int llopen(char *port, int user)
     return 0;
 }
 
+char createBCC2(int dataSize){
+
+    char bcc2 = l1.frame[DATA_START];
+
+    for(int i = 1; i < dataSize; i++){
+        bcc2 = bcc2 ^ l1.frame[DATA_START + i];
+    }
+    return bcc2;
+}
+
+
+//Create Information Frame
+int createInformationFrame (char controlField, unsigned char* data, int dataSize){
+    l1.frame[0] = FLAG;
+    //printf("flag : %x \n", l1.frame[0]);
+    l1.frame[1] = 0x03; //valor fixo pq só emissor envia I e I é um comando
+    //printf("A : %x \n", l1.frame[1]);
+    l1.frame[2] = controlField;
+    //printf("C: %x \n", l1.frame[2]);
+    
+    for(int i = 0; i < dataSize;i++){
+        l1.frame[DATA_START + i] = data[i];
+        //printf("DATA: %x \n", l1.frame[DATA_START + i]);
+    }
+
+    l1.frame[3+ dataSize] = createBCC2(dataSize);
+    //printf("BCC2: %x \n", createBCC2(dataSize));
+
+
+    l1.frame[4 + dataSize]=FLAG;
+    //printf(" FLAG: %x \n" , l1.frame[4+dataSize]);
+    //printf("final da criação da information frame \n");
+    return 0;
+}
+
+//PROBLEMA AINDA ESTOU A IGNORAR A FLAG INICIAL E O FINAL PQ SÓ É PARA FAZER BYTE STUFFING AO
+int byteStuffing(int dataSize){
+    buffedDataSize = dataSize;
+    char beforeStuffingFrame[dataSize];
+
+    printf("dentro do stuffing \n \n \ns");
+    for(int i = DATA_START; i < (DATA_START + dataSize); i++){
+        beforeStuffingFrame[i] = l1.frame[i];
+    }
+    
+    for(int i = DATA_START; i < (DATA_START + dataSize); i++){
+        if(beforeStuffingFrame[i] == FLAG){
+            l1.frame[i] = ESCAPE;
+            l1.frame[i+1] = 0x5E;
+            buffedDataSize += 1;
+            i += 2;
+        }
+        else if(beforeStuffingFrame[i]== ESCAPE){
+            l1.frame[i] = ESCAPE;
+            l1.frame[i+1] = 0x5D;
+            buffedDataSize += 1;
+            i += 2;
+        }
+        else{
+            l1.frame[i] = beforeStuffingFrame[i];
+        }
+    }
+    return 0;
+}
+
+/*
+int llwrite(int fd, char * buffer, int length){
+    int informationFrame;
+    informationFrame = createInformationFrame();
+    char controlField; 
+    if(l1.sequenceNumber == 0) controlField = 0x00; //00000000
+    else controlField = 0x40; //01000000
+    if(createInformationFrame(controlField) != 0) return 1;
+    //if(byteStuffing(data, dataSize) != 0) return 1;
+
+}*/
+
 int main(int argc, char **argv)
 {
     if ((argc < 2) ||
@@ -276,5 +330,32 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    llopen(argv[1], RECEIVER);
+    //llopen(argv[1], RECEIVER);
+    unsigned char miguel [255];
+    miguel[0] = 0xff;
+    miguel[1] = 0x00;
+    if(createInformationFrame(0x00, &miguel, 2) != 0) printf("merda \n");
+
+    printf("BEFORE STUFFING \n");
+    printf("flag: %x \n", l1.frame[0]); // FLAG 0x7E
+    printf("a: %x \n", l1.frame[1]); // 0X03
+    printf("c: %x \n", l1.frame[2]); // CONTROL FIELD
+    printf("c: %x \n", l1.frame[3]); // DATA 1
+    printf("c: %x \n", l1.frame[4]); // DATA 2
+    printf("bcc2: %x \n", l1.frame[3 + 2]); // BCC2
+    printf("flag: %x \n", l1.frame[4 + 2]); // FLAG
+    
+    printf("\n --------------------- \n");
+    if(byteStuffing(2) != 0) printf("merda");
+    
+    printf("buffed data size %d \n \n", buffedDataSize);
+    printf("AFTER STUFFING \n");
+    printf("flag: %x \n", l1.frame[0]); // FLAG 0x7E
+    printf("a: %x \n", l1.frame[1]); // 0X03
+    printf("c: %x \n", l1.frame[2]); // CONTROL FIELD
+    for(int i = 3; i < (3+ buffedDataSize); i++){
+         printf("data: %x \n", l1.frame[i]); // DATA
+    }
+    printf("bcc2: %x \n", l1.frame[3 + buffedDataSize]); // BCC2
+    printf("flag: %x \n", l1.frame[4 + buffedDataSize]); // FLAG
 }
