@@ -113,7 +113,7 @@ int sendFrame(int fd, int frameSize, int responseControlField)
                     BCC_OK = TRUE;
                     printf("%x\n", responseBuffer[0]);
                 }
-            }
+            }0x03
         }
     }
     if (try == NUMBER_ATTEMPTS)
@@ -295,8 +295,8 @@ int createInformationFrame (unsigned char* data, int dataSize){
     l1.frame[1] = 0x03; //valor fixo pq só emissor envia I e I é um comando
     
     //control field
-    if(l1.sequenceNumber == 0) l1.frame[2] = 0x00; //00000000
-    else l1.frame[2] = 0x40; //01000000
+    if(l1.sequenceNumber == 0) l1.frame[2] = CONTROL_FIELD_O; 
+    else l1.frame[2] = CONTROL_FIELD_1;
 
     char bcc2 = createBCC2(dataSize);
 
@@ -346,17 +346,52 @@ int byteDestuffing(int buffedDataSize){
     return 0;
 }
 
+/*
+int sendInformationFrame(char *frame, int fd, int length){
+    int n;
+    
+    if((n = write(fd, frame, length)) <= 0) return -1;
+
+    return n;
+}*/
+
 int llwrite(int fd, char * buffer, int length){
     unsigned char miguel [255];
     miguel[0] = ESCAPE;
     miguel[1] = FLAG;
 
     int frameSize = createInformationFrame(&miguel, 2);
-    printf("frame size : %d \n", frameSize);
-
-   // int sendFrame(fd, frameSize, int responseControlField)
     
+    //write(fd, l1.frame, length)) <= 0 // send Information Frame
+    
+    alarm(ALARM_WAIT_TIME); //temporizador ativado após o envio
 
+    int counter = 0;
+    int numWrittenBytes = 0;
+    while(counter < NUMBER_ATTEMPTS){
+        //WRITE INFORMATION FRAMEvou 
+
+        counter++;      
+    }
+    /*int validResponse = 0;
+
+    if(validResponse) alarm(0); //deasita temporador após resposta válida
+
+    char response[2];
+
+    //l1.frame[2] = control field
+    if(l1.frame[2] == CONTROL_FIELD_O){
+        response[0] = RR1;
+        response[1] = REJ0;
+    }
+    else if (l1.frame[2] == CONTROL_FIELD_1){
+        response[0] == RR0;
+        response[1] = REJ1;
+    }*/
+
+    if (l1.sequenceNumber == 0) l1.sequenceNumber = 1;
+    else if (l1.sequenceNumber == 1) l1.sequenceNumber = 0;
+    else return -1;
 }
 
 int main(int argc, char **argv)
@@ -369,12 +404,6 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    unsigned char miguel [255];
-    miguel[0] = ESCAPE;
-    miguel[1] = FLAG;
-
-    int frameSize = createInformationFrame(&miguel, 2);
-    printf("frame size : %d \n", frameSize);
 
     //llopen(argv[1], RECEIVER);
 
@@ -388,4 +417,5 @@ FALTA:
 - ter o bcc direito (aquilo do stuff antes e depois)
 - depois de fazer destuffing tenho de por o "excesso" a 0 ou cago só pq tem a flag final?
 - confirmar se o cálculo de bcc está certo
+- a confirmação de tramas repetidas é feita em que parte?
 */
