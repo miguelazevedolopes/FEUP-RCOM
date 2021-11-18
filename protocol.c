@@ -31,7 +31,6 @@ void alarmHandler() // atende alarme
     try++;
 }
 
-int buffedDataSize = 0;
 //Creates Supervision and Unnumbered Frames
 int createSuperVisionFrame(int user, int controlField)
 {
@@ -245,66 +244,104 @@ int llopen(char *port, int user)
 
 char createBCC2(int dataSize){
 
-    char bcc2 = l1.frame[DATA_START];
+    int bcc2 = l1.frame[DATA_START];
 
     for(int i = 1; i < dataSize; i++){
         bcc2 = bcc2 ^ l1.frame[DATA_START + i];
     }
+
     return bcc2;
 }
 
+int byteStuffing(int dataSize){
+    int buffedDataSize = dataSize;
+    char beforeStuffingFrame[dataSize];
+
+    for(int i = DATA_START; i < (DATA_START + dataSize); i++){
+        beforeStuffingFrame[i] = l1.frame[i];
+    }
+
+    printf("dentro de stuffing : %x \n",  beforeStuffingFrame[DATA_START + dataSize]);
+    
+    int counter = 0;
+    int indexAfterStuffing = DATA_START;
+    int indexBeforeStuffing = DATA_START;
+    while(counter < (dataSize * 2)){
+        if(beforeStuffingFrame[indexBeforeStuffing] == FLAG){
+            l1.frame[indexAfterStuffing] = ESCAPE;
+            l1.frame[indexAfterStuffing+1] = 0x5E;
+            buffedDataSize += 1;
+            indexAfterStuffing += 2;
+        }
+        else if(beforeStuffingFrame[indexBeforeStuffing]== ESCAPE){
+            l1.frame[indexAfterStuffing] = ESCAPE;
+            l1.frame[indexAfterStuffing+1] = 0x5D;
+            buffedDataSize += 1;
+            indexAfterStuffing += 2;
+        }
+        else{
+            l1.frame[indexAfterStuffing] = beforeStuffingFrame[indexBeforeStuffing];
+            indexAfterStuffing +=1 ;
+        }
+        counter += 2;
+        indexBeforeStuffing += 1;
+
+    }
+
+    return buffedDataSize;
+}
 
 //Create Information Frame
 int createInformationFrame (char controlField, unsigned char* data, int dataSize){
     l1.frame[0] = FLAG;
-    //printf("flag : %x \n", l1.frame[0]);
     l1.frame[1] = 0x03; //valor fixo pq só emissor envia I e I é um comando
-    //printf("A : %x \n", l1.frame[1]);
     l1.frame[2] = controlField;
-    //printf("C: %x \n", l1.frame[2]);
-    
+
+    char bcc2 = createBCC2(dataSize);
+
     for(int i = 0; i < dataSize;i++){
         l1.frame[DATA_START + i] = data[i];
-        //printf("DATA: %x \n", l1.frame[DATA_START + i]);
     }
 
-    l1.frame[3+ dataSize] = createBCC2(dataSize);
-    //printf("BCC2: %x \n", createBCC2(dataSize));
+    l1.frame[DATA_START + dataSize] = bcc2;
 
+    int buffedDataSize = byteStuffing(dataSize +1); //bcc also needs stuffing
 
-    l1.frame[4 + dataSize]=FLAG;
-    //printf(" FLAG: %x \n" , l1.frame[4+dataSize]);
-    //printf("final da criação da information frame \n");
+    l1.frame[DATA_START +buffedDataSize] = FLAG;
+
     return 0;
 }
 
-//PROBLEMA AINDA ESTOU A IGNORAR A FLAG INICIAL E O FINAL PQ SÓ É PARA FAZER BYTE STUFFING AO
-int byteStuffing(int dataSize){
-    buffedDataSize = dataSize;
-    char beforeStuffingFrame[dataSize];
 
-    printf("dentro do stuffing \n \n \ns");
-    for(int i = DATA_START; i < (DATA_START + dataSize); i++){
-        beforeStuffingFrame[i] = l1.frame[i];
+int byteDestuffing(int buffedDataSize){
+    char beforeDestuffingFrame[buffedDataSize];
+
+    for(int i = DATA_START; i < (DATA_START + buffedDataSize); i++){
+        beforeDestuffingFrame[i] = l1.frame[i];
     }
     
-    for(int i = DATA_START; i < (DATA_START + dataSize); i++){
-        if(beforeStuffingFrame[i] == FLAG){
-            l1.frame[i] = ESCAPE;
-            l1.frame[i+1] = 0x5E;
-            buffedDataSize += 1;
-            i += 2;
-        }
-        else if(beforeStuffingFrame[i]== ESCAPE){
-            l1.frame[i] = ESCAPE;
-            l1.frame[i+1] = 0x5D;
-            buffedDataSize += 1;
-            i += 2;
+    int indexAfterDestuffing = DATA_START;
+    int indexBeforeDeStuffing = DATA_START;
+
+    while(indexBeforeDeStuffing < (buffedDataSize-1)){
+        if(beforeDestuffingFrame[indexBeforeDeStuffing] == ESCAPE){
+            if(beforeDestuffingFrame[indexBeforeDeStuffing + 1] == 0x5E){
+                l1.frame[indexAfterDestuffing] = FLAG;
+                indexBeforeDeStuffing += 2;
+            }
+            else if(beforeDestuffingFrame[indexBeforeDeStuffing + 1] == 0x5D){
+                l1.frame[indexAfterDestuffing] = ESCAPE;
+                indexBeforeDeStuffing += 2;
+            }
         }
         else{
-            l1.frame[i] = beforeStuffingFrame[i];
+            l1.frame[indexAfterDestuffing] = beforeDestuffingFrame[indexBeforeDeStuffing];
+            indexBeforeDeStuffing++;
         }
+        indexAfterDestuffing++;
     }
+
+    l1.frame[indexAfterDestuffing] = 0x7E; //restore flag value 
     return 0;
 }
 
@@ -332,30 +369,19 @@ int main(int argc, char **argv)
 
     //llopen(argv[1], RECEIVER);
     unsigned char miguel [255];
-    miguel[0] = 0xff;
-    miguel[1] = 0x00;
+    miguel[0] = ESCAPE;
+    miguel[1] = FLAG;
+
     if(createInformationFrame(0x00, &miguel, 2) != 0) printf("merda \n");
 
-    printf("BEFORE STUFFING \n");
-    printf("flag: %x \n", l1.frame[0]); // FLAG 0x7E
-    printf("a: %x \n", l1.frame[1]); // 0X03
-    printf("c: %x \n", l1.frame[2]); // CONTROL FIELD
-    printf("c: %x \n", l1.frame[3]); // DATA 1
-    printf("c: %x \n", l1.frame[4]); // DATA 2
-    printf("bcc2: %x \n", l1.frame[3 + 2]); // BCC2
-    printf("flag: %x \n", l1.frame[4 + 2]); // FLAG
+    if(byteDestuffing(9) != 0) printf("merda \n");
     
-    printf("\n --------------------- \n");
-    if(byteStuffing(2) != 0) printf("merda");
-    
-    printf("buffed data size %d \n \n", buffedDataSize);
-    printf("AFTER STUFFING \n");
-    printf("flag: %x \n", l1.frame[0]); // FLAG 0x7E
-    printf("a: %x \n", l1.frame[1]); // 0X03
-    printf("c: %x \n", l1.frame[2]); // CONTROL FIELD
-    for(int i = 3; i < (3+ buffedDataSize); i++){
-         printf("data: %x \n", l1.frame[i]); // DATA
-    }
-    printf("bcc2: %x \n", l1.frame[3 + buffedDataSize]); // BCC2
-    printf("flag: %x \n", l1.frame[4 + buffedDataSize]); // FLAG
 }
+
+/*
+FALTA:
+- fazer bite stuffing ao bcc 
+- ter o bcc direito (aquilo do stuff antes e depois)
+- depois de fazer destuffing tenho de por o "excesso" a 0 ou cago só pq tem a flag final?
+- confirmar se o cálculo de bcc está certo
+*/
