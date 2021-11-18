@@ -260,9 +260,7 @@ int byteStuffing(int dataSize){
     for(int i = DATA_START; i < (DATA_START + dataSize); i++){
         beforeStuffingFrame[i] = l1.frame[i];
     }
-
-    printf("dentro de stuffing : %x \n",  beforeStuffingFrame[DATA_START + dataSize]);
-    
+  
     int counter = 0;
     int indexAfterStuffing = DATA_START;
     int indexBeforeStuffing = DATA_START;
@@ -292,10 +290,13 @@ int byteStuffing(int dataSize){
 }
 
 //Create Information Frame
-int createInformationFrame (char controlField, unsigned char* data, int dataSize){
+int createInformationFrame (unsigned char* data, int dataSize){
     l1.frame[0] = FLAG;
     l1.frame[1] = 0x03; //valor fixo pq só emissor envia I e I é um comando
-    l1.frame[2] = controlField;
+    
+    //control field
+    if(l1.sequenceNumber == 0) l1.frame[2] = 0x00; //00000000
+    else l1.frame[2] = 0x40; //01000000
 
     char bcc2 = createBCC2(dataSize);
 
@@ -309,7 +310,7 @@ int createInformationFrame (char controlField, unsigned char* data, int dataSize
 
     l1.frame[DATA_START +buffedDataSize] = FLAG;
 
-    return 0;
+    return DATA_START + buffedDataSize + 1;
 }
 
 
@@ -345,17 +346,18 @@ int byteDestuffing(int buffedDataSize){
     return 0;
 }
 
-/*
 int llwrite(int fd, char * buffer, int length){
-    int informationFrame;
-    informationFrame = createInformationFrame();
-    char controlField; 
-    if(l1.sequenceNumber == 0) controlField = 0x00; //00000000
-    else controlField = 0x40; //01000000
-    if(createInformationFrame(controlField) != 0) return 1;
-    //if(byteStuffing(data, dataSize) != 0) return 1;
+    unsigned char miguel [255];
+    miguel[0] = ESCAPE;
+    miguel[1] = FLAG;
 
-}*/
+    int frameSize = createInformationFrame(&miguel, 2);
+    printf("frame size : %d \n", frameSize);
+
+   // int sendFrame(fd, frameSize, int responseControlField)
+    
+
+}
 
 int main(int argc, char **argv)
 {
@@ -367,14 +369,16 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    //llopen(argv[1], RECEIVER);
     unsigned char miguel [255];
     miguel[0] = ESCAPE;
     miguel[1] = FLAG;
 
-    if(createInformationFrame(0x00, &miguel, 2) != 0) printf("merda \n");
+    int frameSize = createInformationFrame(&miguel, 2);
+    printf("frame size : %d \n", frameSize);
 
-    if(byteDestuffing(9) != 0) printf("merda \n");
+    //llopen(argv[1], RECEIVER);
+
+    //if(byteDestuffing(9) != 0) printf("merda \n");
     
 }
 
