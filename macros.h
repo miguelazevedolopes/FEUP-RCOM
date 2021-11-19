@@ -4,7 +4,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define TRASMITTER 0
+#define TRANSMITTER 0
 #define RECEIVER 1
 
 #define FLAG 0x7E
