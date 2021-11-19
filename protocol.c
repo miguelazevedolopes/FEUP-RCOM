@@ -22,6 +22,8 @@ struct linkLayer
 
 struct linkLayer l1;
 
+enum state { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+
 int flag = 1, try = 1;
 
 void alarmHandler() // atende alarme
@@ -414,25 +416,23 @@ int sendInformationFrame(char *frame, int fd, int length){
     return n;
 }*/
 
-int llwrite(int fd, char *buffer, int length)
-{
-    unsigned char miguel[255];
+int llwrite(int fd, char * buffer, int length){
+    unsigned char miguel [255];
     miguel[0] = ESCAPE;
     miguel[1] = FLAG;
 
-    int frameSize = createInformationFrame(miguel, 2);
-
+    int frameSize = createInformationFrame(&miguel, 2);
+    
     //write(fd, l1.frame, length)) <= 0 // send Information Frame
-
+    
     alarm(ALARM_WAIT_TIME); //temporizador ativado após o envio
 
     int counter = 0;
     int numWrittenBytes = 0;
-    while (counter < NUMBER_ATTEMPTS)
-    {
-        //WRITE INFORMATION FRAMEvou
+    while(counter < NUMBER_ATTEMPTS){
+        //WRITE INFORMATION FRAMEvou 
 
-        counter++;
+        counter++;      
     }
     /*int validResponse = 0;
 
@@ -450,13 +450,69 @@ int llwrite(int fd, char *buffer, int length)
         response[1] = REJ1;
     }*/
 
-    if (l1.sequenceNumber == 0)
-        l1.sequenceNumber = 1;
-    else if (l1.sequenceNumber == 1)
-        l1.sequenceNumber = 0;
-    else
-        return -1;
+    if (l1.sequenceNumber == 0) l1.sequenceNumber = 1;
+    else if (l1.sequenceNumber == 1) l1.sequenceNumber = 0;
+    else return -1;
 }
+
+enum state informationEventHandler(char byteRead, enum state st){
+    switch(st){
+        case START: 
+            if(byteRead == FLAG) st = FLAG_RCV;
+            break;
+        case FLAG_RCV:
+            if(byteRead == FLAG) break;
+            else if(byteRead == 0x03) st = A_RCV; // campo de endereço sempre 0x03 nas tramas de informação
+            else st = START;
+            break;
+        
+        case A_RCV:
+            if(byteRead == FLAG) st = FLAG_RCV;
+            break;
+        
+        case C_RCV:
+            if(byteRead = (l1.frame[1] ^ l1.frame[2])) st = BCC_OK; // cálculo do bcc para confirmação
+            else if (byteRead == FLAG) st = FLAG_RCV;
+            else st = START;
+            break;
+        case BCC_OK:
+            if(byteRead == FLAG) st = STOP;
+            else st = START;
+            break;
+        default: 
+            break;
+        
+    }
+    return st;
+}
+
+int receiveInformationFrame(int fd, int controlField)
+{
+    char byteRead;
+
+    enum state st = START;
+    while(st != STOP){
+        read(fd, byteRead, 1);
+        st = informationEventHandler(byteRead,st);
+    }
+
+    int controlByteRead;
+    if(l1.frame[2] == CONTROL_FIELD_O) controlByteRead = 0;
+    else if (l1.frame[2] == CONTROL_FIELD_1) controlByteRead = 1;
+    else return -1;
+
+    
+
+
+
+    /*while (!STOP)
+    {
+        read(fd, responseBuffer, 1);
+
+        
+    }*/
+}
+
 
 int main(int argc, char **argv)
 {
@@ -468,7 +524,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    llopen(argv[1], TRANSMITTER);
+    //llopen(argv[1], TRANSMITTER);
 
     //if(byteDestuffing(9) != 0) printf("merda \n");
 }
@@ -480,4 +536,6 @@ FALTA:
 - depois de fazer destuffing tenho de por o "excesso" a 0 ou cago só pq tem a flag final?
 - confirmar se o cálculo de bcc está certo
 - a confirmação de tramas repetidas é feita em que parte?
+- testar se a função destuff dá o valor correto de bits no retorno :)
+- não percebi o que a funçao handler tem de fazer no caso de ser A 
 */
