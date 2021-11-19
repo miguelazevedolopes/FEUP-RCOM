@@ -1,9 +1,9 @@
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <limits.h>
@@ -16,7 +16,8 @@ struct linkLayer
     unsigned int sequenceNumber;   /*Número de sequência da trama: 0, 1*/
     unsigned int timeout;          /*Valor do temporizador }: 1 s*/
     unsigned int numTransmissions; /*Número de tentativas em caso de falha*/
-    char frame[CHAR_MAX];          /*Trama*/
+    struct termios oldtio, newtio;
+    char frame[CHAR_MAX]; /*Trama*/
 };
 
 struct linkLayer l1;
@@ -62,13 +63,13 @@ int sendSupervisionFrame(int fd, int user, int controlField, int responseControl
 
     if (user == TRANSMITTER)
     {
-        createSuperVisionFrame(TRANSMITTER, controlField, &frameToSend); //Creates the frame to send
-        createSuperVisionFrame(RECEIVER, responseControlField, &responseFrame);
+        createSuperVisionFrame(TRANSMITTER, controlField, frameToSend); //Creates the frame to send
+        createSuperVisionFrame(RECEIVER, responseControlField, responseFrame);
     }
     else if (user == RECEIVER)
     {
-        createSuperVisionFrame(RECEIVER, controlField, &frameToSend); //Creates the frame to send
-        createSuperVisionFrame(TRANSMITTER, responseControlField, &responseFrame);
+        createSuperVisionFrame(RECEIVER, controlField, frameToSend); //Creates the frame to send
+        createSuperVisionFrame(TRANSMITTER, responseControlField, responseFrame);
     }
 
     char responseBuffer[5];
@@ -86,7 +87,7 @@ int sendSupervisionFrame(int fd, int user, int controlField, int responseControl
             for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
             {
                 write(fd, &(frameToSend[i]), 1);
-                printf("%x\n", frameToSend);
+                printf("%x\n", frameToSend[i]);
             }
             printf("Escreveu uma vez!\n");
             alarm(ALARM_WAIT_TIME);
@@ -142,9 +143,9 @@ int receiveSupervisionFrame(int fd, int expectedControlField, int responseContro
     char frameToReceive[SUPERVISION_FRAME_SIZE];
     char frameToSend[SUPERVISION_FRAME_SIZE];
 
-    createSuperVisionFrame(TRANSMITTER, expectedControlField, &frameToReceive);
+    createSuperVisionFrame(TRANSMITTER, expectedControlField, frameToReceive);
 
-    createSuperVisionFrame(RECEIVER, responseControlField, &frameToSend);
+    createSuperVisionFrame(RECEIVER, responseControlField, frameToSend);
 
     int FLAG_RCV = FALSE;
     int A_RCV = FALSE;
@@ -194,7 +195,7 @@ int receiveSupervisionFrame(int fd, int expectedControlField, int responseContro
     for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
     {
         write(fd, &(frameToSend[i]), 1);
-        printf("%x\n", frameToSend);
+        printf("%x\n", frameToSend[i]);
     }
 }
 
@@ -214,7 +215,7 @@ int llopen(char *port, int user)
         exit(-1);
     }
 
-    bzero(&l1.newtio, sizeof(newtio));
+    bzero(&l1.newtio, sizeof(l1.newtio));
     l1.newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     l1.newtio.c_iflag = IGNPAR;
     l1.newtio.c_oflag = 0;
@@ -279,7 +280,7 @@ int llclose(int fd, int user)
     }
     else if (user == RECEIVER)
     {
-        receiveSupervisionFrame(fd, DISC, DISC)
+        receiveSupervisionFrame(fd, DISC, DISC);
     }
 }
 
@@ -419,7 +420,7 @@ int llwrite(int fd, char *buffer, int length)
     miguel[0] = ESCAPE;
     miguel[1] = FLAG;
 
-    int frameSize = createInformationFrame(&miguel, 2);
+    int frameSize = createInformationFrame(miguel, 2);
 
     //write(fd, l1.frame, length)) <= 0 // send Information Frame
 
@@ -467,7 +468,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    llopen(argv[1], RECEIVER);
+    llopen(argv[1], TRANSMITTER);
 
     //if(byteDestuffing(9) != 0) printf("merda \n");
 }
