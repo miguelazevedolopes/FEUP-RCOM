@@ -22,6 +22,8 @@ struct linkLayer
 
 struct linkLayer l1;
 
+enum state { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+
 int flag = 1, try = 1;
 
 void alarmHandler() // atende alarme
@@ -31,8 +33,7 @@ void alarmHandler() // atende alarme
     try++;
 }
 
-int createSuperVisionFrame(int user, int controlField, char *frame)
-{
+int createSuperVisionFrame(int user, int controlField, char *frame){
     frame[0] = FLAG;
     if (user == TRANSMITTER)
     {
@@ -87,9 +88,7 @@ int sendSupervisionFrame(int fd, int user, int controlField, int responseControl
             for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
             {
                 write(fd, &(frameToSend[i]), 1);
-                printf("%x\n", frameToSend[i]);
             }
-            printf("Escreveu uma vez!\n");
             alarm(ALARM_WAIT_TIME);
             flag = 0;
         }
@@ -108,13 +107,11 @@ int sendSupervisionFrame(int fd, int user, int controlField, int responseControl
                 {
                     STOP = TRUE;
                 }
-                printf("%x\n", responseBuffer[0]);
             }
             else if (responseBuffer[0] == responseFrame[1])
             {
                 if (FLAG_RCV && !A_RCV)
                     A_RCV = TRUE;
-                printf("%x\n", responseBuffer[0]);
             }
             else if (responseBuffer[0] == responseFrame[2])
             {
@@ -126,7 +123,6 @@ int sendSupervisionFrame(int fd, int user, int controlField, int responseControl
                 if (FLAG_RCV && A_RCV && C_RCV)
                 {
                     BCC_OK = TRUE;
-                    printf("%x\n", responseBuffer[0]);
                 }
             }
         }
@@ -164,10 +160,10 @@ int receiveSupervisionFrame(int fd, int expectedControlField, int responseContro
             if (A_RCV && C_RCV && BCC_OK && FLAG_RCV)
             {
                 STOP = TRUE;
-                printf("%x\n", responseBuffer[0]);
-                printf("ultima flag");
+                //printf("%x\n", responseBuffer[0]);
+                //printf("ultima flag");
             }
-            printf("Primeira flag\n");
+            //printf("Primeira flag\n");
         }
         else if (responseBuffer[0] == frameToReceive[1])
         {
@@ -175,12 +171,12 @@ int receiveSupervisionFrame(int fd, int expectedControlField, int responseContro
             {
                 A_RCV = TRUE;
 
-                printf("A: %x\n", responseBuffer[0]);
+                //printf("A: %x\n", responseBuffer[0]);
             }
             else if (FLAG_RCV && A_RCV)
             {
                 C_RCV = TRUE;
-                printf("C: %x\n", responseBuffer[0]);
+                //printf("C: %x\n", responseBuffer[0]);
             }
         }
         else if (responseBuffer[0] == frameToReceive[3])
@@ -188,14 +184,14 @@ int receiveSupervisionFrame(int fd, int expectedControlField, int responseContro
             if (FLAG_RCV && A_RCV && C_RCV)
             {
                 BCC_OK = TRUE;
-                printf("BCC: %x\n", responseBuffer[0]);
+                //printf("BCC: %x\n", responseBuffer[0]);
             }
         }
     }
     for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
     {
         write(fd, &(frameToSend[i]), 1);
-        printf("%x\n", frameToSend[i]);
+        //printf("%x\n", frameToSend[i]);
     }
 }
 
@@ -260,7 +256,7 @@ int llopen(char *port, int user)
         receiveSupervisionFrame(fd, SET, UA);
     }
 
-    return 0;
+    return fd;
 }
 
 int llclose(int fd, int user)
@@ -335,22 +331,24 @@ int byteStuffing(int dataSize)
         indexBeforeStuffing += 1;
     }
 
+    printf("fim de byte stuffing \n");
     return buffedDataSize;
 }
 
-//Create Information Frame
-int createInformationFrame(unsigned char *data, int dataSize)
-{
+int createInformationFrame(unsigned char *data, int dataSize){
+    printf("estou a criar information frame \n");
     l1.frame[0] = FLAG;
     l1.frame[1] = 0x03; //valor fixo pq só emissor envia I e I é um comando
 
     //control field
     if (l1.sequenceNumber == 0)
-        l1.frame[2] = CONTROL_FIELD_O;
+        l1.frame[2] = CONTROL_FIELD_0;
     else
         l1.frame[2] = CONTROL_FIELD_1;
 
     char bcc2 = createBCC2(dataSize);
+
+    l1.frame[3] = l1.frame[1]^ l1.frame[2];
 
     for (int i = 0; i < dataSize; i++)
     {
@@ -363,6 +361,10 @@ int createInformationFrame(unsigned char *data, int dataSize)
 
     l1.frame[DATA_START + buffedDataSize] = FLAG;
 
+    for(int i = 0; i< (3 + buffedDataSize + 1); i++ ){
+        printf("stuffed information frame : %x \n", l1.frame[i]);
+    }
+    printf("acabei de criar information frame");
     return DATA_START + buffedDataSize + 1;
 }
 
@@ -402,61 +404,349 @@ int byteDestuffing(int buffedDataSize)
     }
 
     l1.frame[indexAfterDestuffing] = 0x7E; //restore flag value
-    return 0;
+    return indexAfterDestuffing +1; //number of bytes after destuffing
 }
 
-/*
-int sendInformationFrame(char *frame, int fd, int length){
-    int n;
+enum state supervisionEventHandler(char byteRead, enum state st, char* supervisionFrame){
+    switch(st){
+        case START: 
+            if(byteRead == FLAG) {
+                st = FLAG_RCV;
+                supervisionFrame[0] = byteRead;
+            }
+            break;
+        case FLAG_RCV:
+            if(byteRead == FLAG) break;
+            else if(byteRead == 0x03) { // campo de endereço sempre 0x03 nas tramas de informação
+                st = A_RCV; 
+                supervisionFrame[1] = byteRead;
+            }
+            else st = START;
+            break;
+        
+        case A_RCV:
+            if(byteRead == FLAG) {
+                st = FLAG_RCV;
+            }
+            else if(l1.sequenceNumber == 0){
+                printf("l1 sequence number é 0 \n");
+                printf("e o byte read é : %x \n", byteRead);
+                printf("valor de RR1 : %x \n", RR1  );
+                if(byteRead == RR1 || byteRead == REJ0){
+                    printf("apesar da enorme confusão de char unsigned char entrei \n");
+                    st = C_RCV;
+                    supervisionFrame[2] = byteRead;
+                }
+            }
+            else if(l1.sequenceNumber == 1){
+                printf("l1 sequence number é 0 \n");
+                printf("e o byte read é : %x \n", byteRead);
+                if(byteRead == RR0 || byteRead == REJ1){
+                    st = C_RCV;
+                    supervisionFrame[2] = byteRead;
+                }
+            }
+            break;
+        
+        case C_RCV:
+            if(byteRead == (l1.frame[1] ^ l1.frame[2])) { // cálculo do bcc para confirmação
+                st = BCC_OK; 
+                supervisionFrame[3] = byteRead;
+            }
+            else if (byteRead == FLAG) st = FLAG_RCV;
+            else st = START;
+            break;
+        case BCC_OK:
+            if(byteRead == FLAG) {
+                st = STOP;
+                supervisionFrame[4] = byteRead;
+            }
+            else st = START;
+            break;
+        default: 
+            break;
+    }
+    return st;
+}
+
+//quando emissor lê a supervision frame enviada pelo recetor como resposta a I
+char readSupervisionFrame(int fd){
+    char byteRead;
+    enum state st = START;
+    char supervisionFrame[SUPERVISION_FRAME_SIZE];
+    printf("estou dentro da função que lê a supervision frame \n");
+    while(st != STOP){
+        read(fd, &byteRead, 1);
+        st= supervisionEventHandler(byteRead,st, supervisionFrame);
+        //printf("byte Read : %d \n" , byteRead);
+        //printf("estado : %d \n" , st);
+    }
+
+    return supervisionFrame[2]; // retorna o control field
+}
+
+int llwrite(int fd, char * buffer, int length){
+
+    int stuffedFrameSize = createInformationFrame(buffer, length); // length -> tamanho do data
+    printf("frame size : %d \n", stuffedFrameSize);
+
+    int sentInformationFrame = FALSE;
+    int confirmationReceived = FALSE;
+    char controlField;
+    flag = 1;
+    try = 1; //restauring values 
+
+    (void)signal(SIGALRM, alarmHandler); //Alarm setup
+
+    while(!sentInformationFrame){
+        printf("loop da write \n");
+        for (int i = 0; i < stuffedFrameSize; i++){ //send information frame byte per byte
+            write(fd, &l1.frame[i], 1);
+            printf("infortation frame : %x \n", l1.frame[i]);
+        }
+        printf("done writting information frame \n");
+
+        (void) signal(SIGALRM, alarmHandler);
+        while(!confirmationReceived && try < NUMBER_ATTEMPTS){ //espera pela supervision enviada pelo recetor
+            printf("estou a ler information frame \n ");
+            if (flag)
+            {
+                printf("MALUCOS \n");
+                for (int i = 0; i < stuffedFrameSize; i++){ //resending information frame byte per byte
+                    write(fd, &l1.frame[i], 1);
+                }
+                alarm(3);
+                flag = 0;
+            }
+            controlField = readSupervisionFrame(fd); 
+            printf("controlField : %x \n" , controlField);
+
+            if(controlField != 0){ //if control field != 0, supervision frame was successfull read
+                alarm(0); // cancela alarme
+                confirmationReceived = TRUE;
+                printf("information frame successfull read \n");
+            }
+        }
     
-    if((n = write(fd, frame, length)) <= 0) return -1;
 
-    return n;
-}*/
-
-int llwrite(int fd, char *buffer, int length)
-{
-    unsigned char miguel[255];
-    miguel[0] = ESCAPE;
-    miguel[1] = FLAG;
-
-    int frameSize = createInformationFrame(miguel, 2);
-
-    //write(fd, l1.frame, length)) <= 0 // send Information Frame
-
-    alarm(ALARM_WAIT_TIME); //temporizador ativado após o envio
-
-    int counter = 0;
-    int numWrittenBytes = 0;
-    while (counter < NUMBER_ATTEMPTS)
-    {
-        //WRITE INFORMATION FRAMEvou
-
-        counter++;
+        if ((controlField == RR0) || (controlField == RR1)) sentInformationFrame = TRUE;
+        else if ((controlField == REJ0 )|| (controlField == REJ1)) sentInformationFrame = FALSE;
+        else return -1;
     }
-    /*int validResponse = 0;
 
-    if(validResponse) alarm(0); //deasita temporador após resposta válida
+    printf("estou na write \n");
 
-    char response[2];
+    if(l1.sequenceNumber == 0) l1.sequenceNumber = 1;
+    else if (l1.sequenceNumber == 1) l1.sequenceNumber = 0;
+    else return -1;
 
-    //l1.frame[2] = control field
-    if(l1.frame[2] == CONTROL_FIELD_O){
-        response[0] = RR1;
-        response[1] = REJ0;
-    }
-    else if (l1.frame[2] == CONTROL_FIELD_1){
-        response[0] == RR0;
-        response[1] = REJ1;
-    }*/
-
-    if (l1.sequenceNumber == 0)
-        l1.sequenceNumber = 1;
-    else if (l1.sequenceNumber == 1)
-        l1.sequenceNumber = 0;
-    else
-        return -1;
+    printf("final da write \n");
+    return stuffedFrameSize; // retorno : número de carateres escritos
 }
+
+enum state informationEventHandler(char byteRead, enum state st, int *buffedFrameSize){
+    switch(st){
+        case START: 
+            *buffedFrameSize = 0;
+            if(byteRead == FLAG) {
+                st = FLAG_RCV;
+                l1.frame[*buffedFrameSize] = byteRead;
+                *buffedFrameSize = *buffedFrameSize + 1;
+            }
+            break;
+
+        case FLAG_RCV:
+            if(byteRead == FLAG) break;
+            else if(byteRead == 0x03) { // campo de endereço sempre 0x03 nas tramas de informação
+                st = A_RCV; 
+                l1.frame[*buffedFrameSize] = byteRead;
+                *buffedFrameSize = *buffedFrameSize + 1;
+
+            }
+            else st = START; //buffedFrameSize restored to 0
+            break;
+        
+        case A_RCV:
+            if(byteRead == FLAG) {
+                st = FLAG_RCV;
+                *buffedFrameSize = 1; 
+            }
+            else if(l1.sequenceNumber == 0){
+                if(byteRead == CONTROL_FIELD_0) {
+                    st = C_RCV;
+                    l1.frame[*buffedFrameSize] = byteRead;
+                    *buffedFrameSize = *buffedFrameSize + 1;
+                }
+            }
+            else if(l1.sequenceNumber == 1){
+                if(byteRead == CONTROL_FIELD_1){
+                    st = C_RCV;
+                    l1.frame[*buffedFrameSize] = byteRead;
+                    *buffedFrameSize = *buffedFrameSize + 1;
+                }
+            }
+            else{
+                st = START;
+            }
+            break;
+        
+        case C_RCV:
+            if(byteRead == (l1.frame[1] ^ l1.frame[2])) st = BCC_OK; // cálculo do bcc para confirmação
+            else if (byteRead == FLAG) st = FLAG_RCV;
+            else st = START;
+            break;
+
+        case BCC_OK:
+            if(byteRead == FLAG) {
+                l1.frame[*buffedFrameSize] = byteRead; 
+                st = STOP; 
+            }
+            else {
+                l1.frame[*buffedFrameSize] = byteRead;
+                *buffedFrameSize = *buffedFrameSize + 1; //Data
+            }
+
+        default: 
+            break;
+        
+    }
+    return st;
+}
+
+// quando recetor lê information frame enviada por emissor
+int readInformationFrame(int fd){
+    char byteRead;
+    enum state st = START;
+    int buffedFrameSize;
+
+    printf("a ler information frame \n");
+    while(st != STOP){
+        read(fd, &byteRead, 1);
+        st= informationEventHandler(byteRead, st, &buffedFrameSize);
+        printf("byte read : %x \n", byteRead);
+        printf("state : %d \n", st);
+    }
+    printf("acabei de ler information frame \n");
+    return buffedFrameSize;
+}
+
+int checkBCC2(int numBytesRead){
+    if(l1.frame[numBytesRead-2] == createBCC2(numBytesRead)) return TRUE;
+    return FALSE;
+}
+
+char nextTrama(int controlField){
+    char responseByte;
+    if(controlField == 0){
+        responseByte = RR1;
+        l1.sequenceNumber = 1;
+    }
+    else{
+        responseByte = RR0;
+        l1.sequenceNumber = 0;
+    }
+    printf("dentro da next trama \n");
+    printf("response byte: %x \n", responseByte);
+    return responseByte;
+}
+
+char resendTrama(int controlField){
+    char responseByte;
+    if(controlField == 0){
+        responseByte = REJ0;
+        l1.sequenceNumber = 0;
+    }
+    else{
+        responseByte = REJ1;
+        l1.sequenceNumber = 1;
+    }
+    return responseByte;
+}
+
+int checkDuplicatedTrama(int controlField){
+    if (controlField != l1.sequenceNumber) return TRUE;
+    else if (controlField == l1.sequenceNumber) return FALSE;
+    else return -1;
+}
+
+int getControlField(){
+    if (l1.frame[2] == CONTROL_FIELD_0) return 0;
+    else if (l1.frame[2] == CONTROL_FIELD_1) return 1;
+    return -1;
+}
+
+int saveFrameInBuffer(char *buffer, int numBytes){
+    for(int i= 0; i < (numBytes-6); i++){ // só passamos data bytes para buffer
+        buffer[i] = l1.frame[DATA_START + i];
+    }
+}   
+
+int sendConfirmation(int fd, char responseField){
+    printf("estou a criar supervision frame \n");
+    l1.frame[0] = FLAG;
+    l1.frame[1] = 0x03; //valor fixo pq é resposta enviada pelo recetor
+    l1.frame[2] = responseField;
+    l1.frame[3] = l1.frame[1] ^ l1.frame[2];
+    l1.frame[4] = FLAG;
+
+    for(int i = 0; i < SUPERVISION_FRAME_SIZE; i++){
+        write(fd, &l1.frame[i], 1);
+        printf("supervision frame a ser enviada : %x \n", l1.frame[i]);
+    }
+    return 0;
+
+}
+
+
+int llread(int fd, char *buffer){
+
+    int doneReadingFrame = FALSE;
+    int numBytesRead;
+    int numBytesAfterDestuffing;
+    int controlField;
+    char responseField;
+    while(!doneReadingFrame){
+        numBytesRead = readInformationFrame(fd); 
+        numBytesAfterDestuffing = byteDestuffing(numBytesRead);
+        if(checkBCC2(numBytesRead) == TRUE){
+            printf("BBC2 check \n");
+            controlField = getControlField();
+            printf("control field : %d \n", controlField);
+            if(checkDuplicatedTrama(controlField) == TRUE){
+                printf(" trama duplicada vou ignora la \n");
+                responseField = nextTrama(controlField); //ingoring trama
+            }
+            else if(checkDuplicatedTrama(controlField) == FALSE){
+                saveFrameInBuffer(buffer, numBytesAfterDestuffing);
+                doneReadingFrame = 1; 
+                responseField = nextTrama(controlField); //trama sucessfully read
+            }
+            else return -1;
+        }
+        else if(checkBCC2(numBytesRead) == FALSE){
+            printf("bcc deu merda \n");
+            controlField = getControlField();
+            if(checkDuplicatedTrama(controlField) == TRUE){
+                printf(" trama duplicada vou ignora la \n");
+                responseField = nextTrama(controlField); //ingoring trama
+            }
+            else if(checkDuplicatedTrama(controlField) == FALSE){
+                responseField = resendTrama(controlField); //tinha um erro tem de ser mandada again
+            }
+            else return -1;
+        }
+        else return -1;
+    }
+    printf("já li na read \n");
+    printf("response field : %x \n", responseField );
+    //sends response
+    if (sendConfirmation(fd, responseField) != 0) printf("problem sending supervision frame \n");
+
+    printf("recetor já mandou a supervision frame \n");
+    
+    return (numBytesRead-6); // F A C BCC1 DATA BCC2 F => information frame
+}
+
 
 int main(int argc, char **argv)
 {
@@ -468,16 +758,33 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    llopen(argv[1], TRANSMITTER);
+    /*int fd;
+    fd = llopen(argv[1], TRANSMITTER);
+    char buffer [3];
+    buffer[0] = 'o';
+    buffer[1] = 'l';
+    buffer[2] = 'a';
+    printf("vou entrar na llwrite \n");
+    llwrite(fd, buffer, 3 );
+    llclose(fd, TRANSMITTER);*/
 
-    //if(byteDestuffing(9) != 0) printf("merda \n");
+    
+   int fd;
+    fd = llopen(argv[1], RECEIVER);
+    char output [3];
+    llread(fd, output);
+    printf("%c \n", output[0]);
+    printf("%c \n", output[1]);
+    printf("%c \n", output[2]);
+    //llclose(fd,RECEIVER);
 }
 
 /*
 FALTA:
-- fazer bite stuffing ao bcc 
-- ter o bcc direito (aquilo do stuff antes e depois)
 - depois de fazer destuffing tenho de por o "excesso" a 0 ou cago só pq tem a flag final?
 - confirmar se o cálculo de bcc está certo
 - a confirmação de tramas repetidas é feita em que parte?
+- não percebi o que a funçao handler tem de fazer no caso de ser A 
+- fazer aquilo de guardar a frame no buffer antes de escrever (se der merda tê- la guardada)
+- não estamos a fechar o file descriptor
 */
