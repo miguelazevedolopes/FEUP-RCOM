@@ -33,7 +33,7 @@ void alarmHandler() // atende alarme
     try++;
 }
 
-int createSuperVisionFrame(int user, int controlField, char *frame){
+int createSuperVisionFrame(int user, char controlField, char *frame){
     frame[0] = FLAG;
     if (user == TRANSMITTER)
     {
@@ -56,7 +56,7 @@ int createSuperVisionFrame(int user, int controlField, char *frame){
     frame[4] = FLAG;
 }
 
-int sendSupervisionFrame(int fd, int user, int controlField, int responseControlField)
+int sendSupervisionFrame(int fd, int user, char controlField, char responseControlField)
 {
 
     char frameToSend[SUPERVISION_FRAME_SIZE];
@@ -133,7 +133,7 @@ int sendSupervisionFrame(int fd, int user, int controlField, int responseControl
         return 0;
 }
 
-int receiveSupervisionFrame(int fd, int expectedControlField, int responseControlField)
+int receiveSupervisionFrame(int fd, char expectedControlField, char responseControlField)
 {
 
     char frameToReceive[SUPERVISION_FRAME_SIZE];
@@ -283,7 +283,7 @@ int llclose(int fd, int user)
 char createBCC2(int dataSize)
 {
 
-    int bcc2 = l1.frame[DATA_START];
+    char bcc2 = l1.frame[DATA_START];
 
     for (int i = 1; i < dataSize; i++)
     {
