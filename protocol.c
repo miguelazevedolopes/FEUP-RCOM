@@ -285,9 +285,10 @@ unsigned char createBCC2(int dataSize)
 
     unsigned char bcc2 = l1.frame[DATA_START];
 
-    for (int i = 1; i < dataSize; i++)
+    for (int i = 0; i < dataSize; i++)
     {
         bcc2 = bcc2 ^ l1.frame[DATA_START + i];
+        printf("data: %x \n", l1.frame[DATA_START + i] );
     }
 
     return bcc2;
@@ -346,16 +347,14 @@ int createInformationFrame(unsigned char *data, int dataSize){
     else
         l1.frame[2] = CONTROL_FIELD_1;
 
-    unsigned char bcc2 = createBCC2(dataSize);
-
     l1.frame[3] = l1.frame[1]^ l1.frame[2];
 
     for (int i = 0; i < dataSize; i++)
     {
         l1.frame[DATA_START + i] = data[i];
     }
-
-    l1.frame[DATA_START + dataSize] = bcc2;
+    l1.frame[DATA_START + dataSize] = createBCC2(dataSize);
+    printf("bcc2 na criação de I %x \n", l1.frame[DATA_START + dataSize]);
 
     int buffedDataSize = byteStuffing(dataSize + 1); //bcc also needs stuffing
 
@@ -364,6 +363,7 @@ int createInformationFrame(unsigned char *data, int dataSize){
     for(int i = 0; i< (3 + buffedDataSize + 1); i++ ){
         printf("stuffed information frame : %x \n", l1.frame[i]);
     }
+
     printf("acabei de criar information frame");
     return DATA_START + buffedDataSize + 1;
 }
@@ -472,8 +472,8 @@ unsigned char readSupervisionFrame(int fd){
     while(st != STOP){
         read(fd, &byteRead, 1);
         st= supervisionEventHandler(byteRead,st, supervisionFrame);
-        printf("byte Read : %d \n" , byteRead);
-        printf("estado : %d \n" , st);
+        //printf("byte Read : %d \n" , byteRead);
+        //printf("estado : %d \n" , st);
     }
 
     return supervisionFrame[2]; // retorna o control field
@@ -582,14 +582,22 @@ enum state informationEventHandler(unsigned char byteRead, enum state st, int *b
             break;
         
         case C_RCV:
-            if(byteRead == (l1.frame[1] ^ l1.frame[2])) st = BCC_OK; // cálculo do bcc para confirmação
-            else if (byteRead == FLAG) st = FLAG_RCV;
+            if(byteRead == (l1.frame[1] ^ l1.frame[2])) { // cálculo do bcc para confirmação
+                st = BCC_OK;
+                l1.frame[*buffedFrameSize] = byteRead;
+                *buffedFrameSize = *buffedFrameSize + 1;
+            }
+            else if (byteRead == FLAG) {
+                st = FLAG_RCV;
+                *buffedFrameSize = 1; 
+            }
             else st = START;
             break;
 
         case BCC_OK:
             if(byteRead == FLAG) {
                 l1.frame[*buffedFrameSize] = byteRead; 
+                *buffedFrameSize = *buffedFrameSize +1;
                 st = STOP; 
             }
             else {
@@ -616,13 +624,18 @@ int readInformationFrame(int fd){
         st= informationEventHandler(byteRead, st, &buffedFrameSize);
         printf("byte read : %x \n", byteRead);
         printf("state : %d \n", st);
+        printf("buffed frame size : %x\n", buffedFrameSize);
     }
     printf("acabei de ler information frame \n");
     return buffedFrameSize;
 }
 
-int checkBCC2(int numBytesRead){
-    if(l1.frame[numBytesRead-2] == createBCC2(numBytesRead)) return TRUE;
+int checkBCC2(int numBytesAfterDestuffing){
+    int dataSize = numBytesAfterDestuffing -6;
+    printf("dataSize: %x \n", dataSize);
+    printf("bcc : %x \n", l1.frame[numBytesAfterDestuffing-2] );
+    printf("bcc criado por teste: %x \n", createBCC2(dataSize));
+    if(l1.frame[numBytesAfterDestuffing-2] == createBCC2(dataSize)) return TRUE;
     return FALSE;
 }
 
@@ -673,16 +686,17 @@ int saveFrameInBuffer(unsigned char *buffer, int numBytes){
 }   
 
 int sendConfirmation(int fd, unsigned char responseField){
+    char supervisionFrame [5];
     printf("estou a criar supervision frame \n");
-    l1.frame[0] = FLAG;
-    l1.frame[1] = 0x03; //valor fixo pq é resposta enviada pelo recetor
-    l1.frame[2] = responseField;
-    l1.frame[3] = l1.frame[1] ^ l1.frame[2];
-    l1.frame[4] = FLAG;
+    supervisionFrame[0] = FLAG;
+    supervisionFrame[1] = 0x03; //valor fixo pq é resposta enviada pelo recetor
+    supervisionFrame[2] = responseField;
+    supervisionFrame[3] = supervisionFrame[1] ^ supervisionFrame[2];
+    supervisionFrame[4] = FLAG;
 
     for(int i = 0; i < SUPERVISION_FRAME_SIZE; i++){
-        write(fd, &l1.frame[i], 1);
-        printf("supervision frame a ser enviada : %x \n", l1.frame[i]);
+        write(fd, &supervisionFrame[i], 1);
+        printf("supervision frame a ser enviada : %x \n", supervisionFrame[i]);
     }
     return 0;
 
@@ -698,8 +712,12 @@ int llread(int fd, unsigned char *buffer){
     unsigned char responseField;
     while(!doneReadingFrame){
         numBytesRead = readInformationFrame(fd); 
+        printf("READ INFORMATION \n");
+        for(int i = 0 ; i < numBytesRead; i++){
+            printf("%x \n" , l1.frame[i]);
+        }
         numBytesAfterDestuffing = byteDestuffing(numBytesRead);
-        if(checkBCC2(numBytesRead) == TRUE){
+        if(checkBCC2(numBytesAfterDestuffing) == TRUE){ // F A C BCC1 DATA BCC2 F => information frame
             printf("BBC2 check \n");
             controlField = getControlField();
             printf("control field : %d \n", controlField);
@@ -736,10 +754,16 @@ int llread(int fd, unsigned char *buffer){
     printf("recetor já mandou a supervision frame \n");
 
     int index = 0;
-    for(int i= DATA_START; i < (numBytesRead-2); i++){
+    printf("WTF %x \n", l1.frame[DATA_START]);
+    for(int i= DATA_START; i < (numBytesAfterDestuffing -2); i++){
+        printf("valor de l1.frame: %x \n " ,l1.frame[i]);
         buffer[index] = l1.frame[i];
         index++;
     }
+
+    printf("dentro do read: %x \n", buffer[0]);
+    printf("dentro do read: %x \n", buffer[1]);
+    printf("dentro do read: %x \n", buffer[2]);
     
     return (numBytesRead-6); // F A C BCC1 DATA BCC2 F => information frame
 }
@@ -755,6 +779,7 @@ int main(int argc, unsigned char **argv)
         exit(1);
     }
 
+    /*
     int fd;
     fd = llopen(argv[1], TRANSMITTER);
     unsigned char buffer [3];
@@ -766,9 +791,8 @@ int main(int argc, unsigned char **argv)
     printf("%x \n", buffer[0]);
     printf("%x \n", buffer[1]);
     printf("%x \n", buffer[2]);
-    llclose(fd, TRANSMITTER);
-    
-    /*
+    llclose(fd, TRANSMITTER);*/
+
     int fd;
     fd = llopen(argv[1], RECEIVER);
     unsigned char output [3];
@@ -777,7 +801,7 @@ int main(int argc, unsigned char **argv)
     printf("%x \n", output[1]);
     printf("%x \n", output[2]);
     printf("fim desta merda \n");
-    llclose(fd,RECEIVER);*/
+    llclose(fd,RECEIVER);
 }
 
 /*
