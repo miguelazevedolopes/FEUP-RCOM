@@ -198,31 +198,32 @@ unsigned char createBCC2(int dataSize)
 
 int byteStuffing(int dataSize)
 {
-    int buffedDataSize = dataSize;
+    int stuffedDataSize = dataSize;
     unsigned char beforeStuffingFrame[dataSize];
-
+    int indexBeforeStuffing = 0;
     for (int i = DATA_START; i < (DATA_START + dataSize); i++)
     {
-        beforeStuffingFrame[i] = l1.frame[i];
+        beforeStuffingFrame[indexBeforeStuffing] = l1.frame[i];
+        indexBeforeStuffing++;
     }
 
     int counter = 0;
     int indexAfterStuffing = DATA_START;
-    int indexBeforeStuffing = DATA_START;
+    indexBeforeStuffing = 0;
     while (counter < (dataSize * 2))
     {
         if (beforeStuffingFrame[indexBeforeStuffing] == FLAG)
         {
             l1.frame[indexAfterStuffing] = ESCAPE;
             l1.frame[indexAfterStuffing + 1] = 0x5E;
-            buffedDataSize += 1;
+            stuffedDataSize += 1;
             indexAfterStuffing += 2;
         }
         else if (beforeStuffingFrame[indexBeforeStuffing] == ESCAPE)
         {
             l1.frame[indexAfterStuffing] = ESCAPE;
             l1.frame[indexAfterStuffing + 1] = 0x5D;
-            buffedDataSize += 1;
+            stuffedDataSize += 1;
             indexAfterStuffing += 2;
         }
         else
@@ -234,7 +235,7 @@ int byteStuffing(int dataSize)
         indexBeforeStuffing += 1;
     }
 
-    return buffedDataSize;
+    return stuffedDataSize;
 }
 
 int createInformationFrame(unsigned char *data, int dataSize)
@@ -256,18 +257,18 @@ int createInformationFrame(unsigned char *data, int dataSize)
     }
     l1.frame[DATA_START + dataSize] = createBCC2(dataSize);
 
-    int buffedDataSize = byteStuffing(dataSize + 1); //bcc also needs stuffing
+    int stuffedDataSize = byteStuffing(dataSize + 1); //bcc also needs stuffing
 
-    l1.frame[DATA_START + buffedDataSize] = FLAG;
+    l1.frame[DATA_START + stuffedDataSize] = FLAG;
 
-    return DATA_START + buffedDataSize + 1;
+    return DATA_START + stuffedDataSize + 1;
 }
 
-int byteDestuffing(int buffedDataSize)
+int byteDestuffing(int stuffedDataSize)
 {
-    unsigned char beforeDestuffingFrame[buffedDataSize];
+    unsigned char beforeDestuffingFrame[DATA_START + stuffedDataSize];
 
-    for (int i = DATA_START; i < (DATA_START + buffedDataSize); i++)
+    for (int i = DATA_START; i < (DATA_START + stuffedDataSize); i++)
     {
         beforeDestuffingFrame[i] = l1.frame[i];
     }
@@ -275,7 +276,7 @@ int byteDestuffing(int buffedDataSize)
     int indexAfterDestuffing = DATA_START;
     int indexBeforeDeStuffing = DATA_START;
 
-    while (indexBeforeDeStuffing < (buffedDataSize - 1))
+    while (indexBeforeDeStuffing < (stuffedDataSize - 1))
     {
         if (beforeDestuffingFrame[indexBeforeDeStuffing] == ESCAPE)
         {
@@ -624,7 +625,7 @@ int saveDataInBuffer(unsigned char *buffer, int numBytesAfterDestuffing)
 
 int sendConfirmation(int fd, unsigned char responseField)
 {
-    char supervisionFrame[5];
+    char supervisionFrame[SUPERVISION_FRAME_SIZE];
     supervisionFrame[0] = FLAG;
     supervisionFrame[1] = 0x03; //valor fixo pq é resposta enviada pelo recetor
     supervisionFrame[2] = responseField;

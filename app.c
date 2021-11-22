@@ -154,7 +154,7 @@ int receiveFile()
     else
         printf("Receiver protocol open!\n");
     unsigned char buffer[PACKAGE_SIZE]; //buffer size is allocated inside the llread function
-    unsigned char packageData[PACKAGE_SIZE ];
+    unsigned char packageData[PACKAGE_SIZE];
     int sizeRead = 0;
     int sequenceNumber = 0;
     int packageType = -1;
@@ -274,7 +274,7 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    sendFile("TESTE.txt");
-    //receiveFile();
+    //sendFile("TESTE.txt");
+    receiveFile();
     return 0;
 }
