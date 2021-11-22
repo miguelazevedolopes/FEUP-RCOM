@@ -89,6 +89,7 @@ int receiveSupervisionFrame(int fd, unsigned char responseControlField)
     }
 
     unsigned char frameToSend[SUPERVISION_FRAME_SIZE];
+
     createSuperVisionFrame(RECEIVER, responseControlField, frameToSend);
 
     for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)

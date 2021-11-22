@@ -274,7 +274,7 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    //sendFile("TESTE.txt");
-    receiveFile();
+    sendFile("TESTE.txt");
+    //receiveFile();
     return 0;
 }
