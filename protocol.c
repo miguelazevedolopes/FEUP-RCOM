@@ -378,71 +378,62 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
     return st;
 }
 
-//quando emissor lê a supervision frame enviada pelo recetor como resposta a I
-unsigned char readSupervisionFrame(int fd)
-{
-    unsigned char byteRead;
-    enum state st = START;
-    unsigned char supervisionFrame[SUPERVISION_FRAME_SIZE];
-
-    while (st != STOP)
-    {
-        read(fd, &byteRead, 1);
-        st = supervisionEventHandler(byteRead, st, supervisionFrame);
-    }
-
-    return supervisionFrame[2]; // retorna o control field
-}
-
 int llwrite(int fd, unsigned char *buffer, int length)
 {
 
     int stuffedFrameSize = createInformationFrame(buffer, length); // length -> tamanho do data
 
-    int sentInformationFrame = FALSE;
-    int confirmationReceived = FALSE;
     unsigned char controlField;
-    flag = 1;
-    try = 1; //restauring values
+
+    unsigned char byteRead;
+    enum state st = START;
 
     (void)signal(SIGALRM, alarmHandler); //Alarm setup
 
-    while (!sentInformationFrame)
-    {
-        for (int i = 0; i < stuffedFrameSize; i++)
-        { //send information frame byte per byte
-            write(fd, &l1.frame[i], 1);
-        }
-
-        (void)signal(SIGALRM, alarmHandler);
-        while (!confirmationReceived && try < NUMBER_ATTEMPTS)
-        { //espera pela supervision enviada pelo recetor
-            if (flag)
-            {
-                for (int i = 0; i < stuffedFrameSize; i++)
-                { //resending information frame byte per byte
-                    write(fd, &l1.frame[i], 1);
-                }
-                alarm(3);
-                flag = 0;
-            }
-            controlField = readSupervisionFrame(fd);
-
-            if ((controlField == RR0) || (controlField == RR1) || (controlField == REJ0) || (controlField == REJ1))
-            {             //if control field != 0, supervision frame was successfull read
-                alarm(0); // cancela alarme
-                confirmationReceived = TRUE;
-            }
-        }
-
-        if ((controlField == RR0) || (controlField == RR1))
-            sentInformationFrame = TRUE;
-        else if ((controlField == REJ0) || (controlField == REJ1))
-            sentInformationFrame = FALSE;
-        else
-            return -1;
+    for (int i = 0; i < stuffedFrameSize; i++)
+    { //send information frame byte per byte
+        write(fd, &l1.frame[i], 1);
     }
 
+    (void)signal(SIGALRM, alarmHandler);
+    flag = 1;
+    try = 1; //restarting values
+
+    while (try <= NUMBER_ATTEMPTS)
+    { //espera pela supervision enviada pelo recetor
+        if (flag)
+        {
+            for (int i = 0; i < stuffedFrameSize; i++)
+            { //resending information frame byte per byte
+                if (write(fd, &l1.frame[i], 1) < 0)
+                {
+                    printf("Error writing information frame\n");
+                }
+            }
+            alarm(3);
+            flag = 0;
+        }
+        read(fd, &byteRead, 1);
+        st = supervisionEventHandler(byteRead, st, l1.frame);
+
+        if (st == STOP)
+        {
+            controlField = l1.frame[2];
+            if ((controlField == RR0) || (controlField == RR1))
+            {             //if control field != 0, supervision frame was successfull read
+                alarm(0); // cancela alarme
+                break;
+            }
+            else if ((controlField == REJ0) || (controlField == REJ1))
+            {
+                alarm(0);
+                flag = 1;
+                try++;
+                st = START;
+            }
+        }
+    }
+    printf("Escreveu\n");
     if (l1.sequenceNumber == 0)
         l1.sequenceNumber = 1;
     else if (l1.sequenceNumber == 1)
@@ -547,6 +538,7 @@ enum state informationEventHandler(unsigned char byteRead, enum state st, int *b
 // quando recetor lê information frame enviada por emissor
 int readInformationFrame(int fd)
 {
+    printf("Entrou no readInformation\n");
     unsigned char byteRead;
     enum state st = START;
     int buffedFrameSize;
@@ -555,6 +547,7 @@ int readInformationFrame(int fd)
         read(fd, &byteRead, 1);
         st = informationEventHandler(byteRead, st, &buffedFrameSize);
     }
+    printf("Leu um frame\n");
     return buffedFrameSize;
 }
 
@@ -617,7 +610,7 @@ int getSequenceNumber()
     return -1;
 }
 
-int saveFrameInBuffer(unsigned char *buffer, int numBytesAfterDestuffing)
+int saveDataInBuffer(unsigned char *buffer, int numBytesAfterDestuffing)
 { //só passamos data bytes para buffer
     int index = 0;
     for (int i = DATA_START; i < (numBytesAfterDestuffing - 2); i++)
@@ -661,12 +654,20 @@ int llread(int fd, unsigned char *buffer)
             sequenceNumber = getSequenceNumber();
             if (checkDuplicatedFrame(sequenceNumber) == TRUE)
             {
+                printf("Tou aqui 1\n");
                 responseField = nextFrame(sequenceNumber); //ingoring trama
             }
             else if (checkDuplicatedFrame(sequenceNumber) == FALSE)
             {
-                saveFrameInBuffer(buffer, numBytesAfterDestuffing);
-                doneReadingFrame = 1;
+                printf("Tou aqui 2\n");
+                saveDataInBuffer(buffer, numBytesAfterDestuffing);
+                printf("--\n");
+                for (int i = 0; i < numBytesAfterDestuffing - 6; i++)
+                {
+                    printf("%c", buffer[i]);
+                }
+                printf("\n--");
+                doneReadingFrame = TRUE;
                 responseField = nextFrame(sequenceNumber); //trama sucessfully read
             }
             else
@@ -677,10 +678,12 @@ int llread(int fd, unsigned char *buffer)
             sequenceNumber = getSequenceNumber();
             if (checkDuplicatedFrame(sequenceNumber) == TRUE)
             {
+                printf("Tou aqui 3\n");
                 responseField = nextFrame(sequenceNumber); //ingoring trama
             }
             else if (checkDuplicatedFrame(sequenceNumber) == FALSE)
             {
+                printf("Tou aqui 4\n");
                 responseField = resendFrame(sequenceNumber); //tinha um erro tem de ser mandada again
             }
             else

@@ -105,7 +105,7 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
 {
     int dataSize = 0;
     int sizeOfDataSize = 0;
-    if (package[0] == (CF_START || CF_END))
+    if ((package[0] == CF_START) || (package[0] == CF_END))
     {
         if (package[1] != SIZE)
             return -1;
@@ -151,9 +151,10 @@ int receiveFile()
         printf("Error opening protocol on the transmitter side.\n");
         return -1;
     }
-    else printf("Receiver protocol open!\n");
-    unsigned char buffer[PACKAGE_SIZE];
-    unsigned char *packageData;
+    else
+        printf("Receiver protocol open!\n");
+    unsigned char buffer[PACKAGE_SIZE]; //buffer size is allocated inside the llread function
+    unsigned char packageData[PACKAGE_SIZE ];
     int sizeRead = 0;
     int sequenceNumber = 0;
     int packageType = -1;
@@ -162,11 +163,13 @@ int receiveFile()
     while (!stop)
     {
         sizeRead = llread(fd, buffer);
-
+        printf("OLA eu saí\n");
         if (sizeRead < 0)
             printf("Error reading data package");
-
+        printf("\n\npackage type: %d\n\n", buffer[0]);
         packageType = readPackageData(sequenceNumber, buffer, packageData);
+        printf("saiu2");
+        printf("\n\npackage type: %d\n\n", packageType);
         switch (packageType)
         {
         case CF_START:
@@ -184,14 +187,14 @@ int receiveFile()
             sequenceNumber = (sequenceNumber + 1) % 255;
             break;
         case CF_END:
+            printf("saiu4");
             stop = TRUE;
             break;
         default:
+            printf("saiu5");
             break;
         }
     }
-
-    free(packageData);
 }
 
 int sendFile(char *fileToSend)
@@ -223,7 +226,7 @@ int sendFile(char *fileToSend)
     unsigned char data[PACKAGE_SIZE];
 
     int packageSize = createControlPackage(CF_START, package);
-
+    printf("Criou pacote de controlo\n");
     if (llwrite(fd, package, packageSize) == -1)
     {
         printf("Error when writing the START control package");
@@ -265,12 +268,13 @@ int sendFile(char *fileToSend)
 
     fclose(fp);
 
+    printf("Finished sending file\n");
     //llclose();
 }
 
 int main(int argc, char const *argv[])
 {
-    sendFile("pinguim.gif");
-    //receiveFile();
+    //sendFile("TESTE.txt");
+    receiveFile();
     return 0;
 }

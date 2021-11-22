@@ -17,7 +17,7 @@ struct linkLayer
     unsigned int timeout;          /*Valor do temporizador }: 1 s*/
     unsigned int numTransmissions; /*Número de tentativas em caso de falha*/
     struct termios oldtio, newtio;
-    unsigned char frame[CHAR_MAX]; /*Trama*/
+    unsigned char frame[PACKAGE_SIZE + 6]; /*Trama*/
 };
 
 struct linkLayer l1;
@@ -136,7 +136,7 @@ int getSequenceNumber();
  * @param buffer Array of characters where the read information will be stored
  * @param responseField response byte that will inform the transmitter if frame was sucessfully read or not
  */
-int saveFrameInBuffer(unsigned char *buffer, int numBytesAfterDestuffing);
+int saveDataInBuffer(unsigned char *buffer, int numBytesAfterDestuffing);
 
 /**
  * Function that sends supervision frame to trasmitter after reading information frame

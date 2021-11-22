@@ -25,7 +25,7 @@
 #define NONE 0xFF
 
 #define NUMBER_ATTEMPTS 3
-#define ALARM_WAIT_TIME 3
+#define ALARM_WAIT_TIME 5
 
 #define DATA_START 4
 #define ESCAPE 0x7D
