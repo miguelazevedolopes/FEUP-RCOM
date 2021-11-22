@@ -296,7 +296,8 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    sendFile("pinguim.gif");
+    
+    sendFile("TESTE.txt");
     //receiveFile();
     return 0;
 }
