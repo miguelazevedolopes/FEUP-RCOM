@@ -47,4 +47,4 @@
         (byte & 0x02 ? '1' : '0'), \
         (byte & 0x01 ? '1' : '0')
 
-#define PACKAGE_SIZE 10000
+#define PACKAGE_SIZE 1024

@@ -147,7 +147,7 @@ int llopen(unsigned char *port, int user)
     else if (user == RECEIVER)
     {
         l1.newtio.c_cc[VTIME] = 0; /* inter-unsigned character timer unused */
-        l1.newtio.c_cc[VMIN] = 1;  /* blocking read until 5 unsigned chars received */
+        l1.newtio.c_cc[VMIN] = 0;  /* blocking read until 5 unsigned chars received */
 
         tcflush(fd, TCIOFLUSH);
 
@@ -315,15 +315,16 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
         }
         break;
     case FLAG_RCV:
-        if (byteRead == FLAG)
-            break;
-        else if (byteRead == 0x03)
+        if (byteRead == 0x03)
         {
             st = A_RCV;
             supervisionFrame[1] = byteRead;
         }
-        else
+        else if (byteRead != FLAG)
+        {
+            printf("Byte read: %x", byteRead);
             st = START;
+        }
         break;
 
     case A_RCV:
@@ -391,20 +392,15 @@ int llwrite(int fd, unsigned char *buffer, int length)
     enum state st = START;
 
     (void)signal(SIGALRM, alarmHandler); //Alarm setup
-
-    for (int i = 0; i < stuffedFrameSize; i++)
-    { //send information frame byte per byte
-        write(fd, &l1.frame[i], 1);
-    }
-
-    (void)signal(SIGALRM, alarmHandler);
     flag = 1;
     try = 1; //restarting values
+    int stop = FALSE;
 
-    while (try <= NUMBER_ATTEMPTS)
+    while (try <= NUMBER_ATTEMPTS && !stop)
     { //espera pela supervision enviada pelo recetor
         if (flag)
         {
+            printf("%d", st);
             for (int i = 0; i < stuffedFrameSize; i++)
             { //resending information frame byte per byte
                 if (write(fd, &l1.frame[i], 1) < 0)
@@ -412,22 +408,28 @@ int llwrite(int fd, unsigned char *buffer, int length)
                     printf("Error writing information frame\n");
                 }
             }
-            alarm(3);
+            alarm(ALARM_WAIT_TIME);
             flag = 0;
         }
         read(fd, &byteRead, 1);
+        if (byteRead != FLAG && byteRead != 0)
+            printf("Byte: %x\n", byteRead);
         st = supervisionEventHandler(byteRead, st, l1.frame);
 
         if (st == STOP)
         {
+
             controlField = l1.frame[2];
             if ((controlField == RR0) || (controlField == RR1))
             {             //if control field != 0, supervision frame was successfull read
                 alarm(0); // cancela alarme
+
+                stop = TRUE;
                 break;
             }
             else if ((controlField == REJ0) || (controlField == REJ1))
             {
+                printf("recebi confirmação negativa");
                 alarm(0);
                 flag = 1;
                 try++;
@@ -435,7 +437,6 @@ int llwrite(int fd, unsigned char *buffer, int length)
             }
         }
     }
-    printf("Escreveu\n");
     if (l1.sequenceNumber == 0)
         l1.sequenceNumber = 1;
     else if (l1.sequenceNumber == 1)
@@ -634,7 +635,7 @@ int sendConfirmation(int fd, unsigned char responseField)
 
     for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
     {
-        write(fd, &supervisionFrame[i], 1);
+        write(fd, &(supervisionFrame[i]), 1);
     }
     return 0;
 }
@@ -663,12 +664,6 @@ int llread(int fd, unsigned char *buffer)
             {
                 printf("Tou aqui 2\n");
                 saveDataInBuffer(buffer, numBytesAfterDestuffing);
-                printf("--\n");
-                for (int i = 0; i < numBytesAfterDestuffing - 6; i++)
-                {
-                    printf("%c", buffer[i]);
-                }
-                printf("\n--");
                 doneReadingFrame = TRUE;
                 responseField = nextFrame(sequenceNumber); //trama sucessfully read
             }

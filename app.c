@@ -24,7 +24,6 @@ typedef struct
 {
     unsigned char *name;
     int size;
-    unsigned char *contents;
 } file;
 
 file f;
@@ -105,7 +104,7 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
 {
     int dataSize = 0;
     int sizeOfDataSize = 0;
-    if ((package[0] == CF_START) || (package[0] == CF_END))
+    if (package[0] == CF_START)
     {
         if (package[1] != SIZE)
             return -1;
@@ -118,9 +117,37 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
         if (package[3 + sizeOfDataSize] != NAME)
             return -1;
         dataSize = package[4 + sizeOfDataSize];
+        f.name = (unsigned char *)malloc(dataSize);
         for (int i = 0; i < dataSize; i++)
         {
             f.name[i] = package[5 + sizeOfDataSize + i];
+        }
+    }
+    else if (package[0] == CF_END)
+    {
+        if (package[1] != SIZE)
+            return -1;
+        sizeOfDataSize = package[2];
+        for (int i = 0; i < sizeOfDataSize; i++)
+        {
+            dataSize += power(256, sizeOfDataSize - 1 - i) * package[3 + i];
+        }
+        if (f.size != dataSize)
+        {
+            printf("END package doesn't match with START package");
+            return -1;
+        }
+
+        if (package[3 + sizeOfDataSize] != NAME)
+            return -1;
+        dataSize = package[4 + sizeOfDataSize];
+        for (int i = 0; i < dataSize; i++)
+        {
+            if (f.name[i] != package[5 + sizeOfDataSize + i])
+            {
+                printf("END package doesn't match with START package");
+                return -1;
+            }
         }
     }
     else if (package[0] == CF_DATA)
@@ -128,7 +155,6 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
         if (package[1] != sequenceNumber)
             return -1;
         dataSize = package[2] * 256 + package[3];
-        data = (unsigned char *)malloc(dataSize);
         for (int i = 0; i < dataSize; i++)
         {
             data[i] = package[4 + i];
@@ -163,17 +189,13 @@ int receiveFile()
     while (!stop)
     {
         sizeRead = llread(fd, buffer);
-        printf("OLA eu saí\n");
         if (sizeRead < 0)
             printf("Error reading data package");
-        printf("\n\npackage type: %d\n\n", buffer[0]);
         packageType = readPackageData(sequenceNumber, buffer, packageData);
-        printf("saiu2");
-        printf("\n\npackage type: %d\n\n", packageType);
+
         switch (packageType)
         {
         case CF_START:
-            printf("primeiro pacote chegou");
             fp = fopen(f.name, "w");
             if (fp == NULL)
             {
@@ -182,8 +204,7 @@ int receiveFile()
             }
             break;
         case CF_DATA:
-            printf("primeiro pacote chegou");
-            fwrite(packageData, 1, sizeof(packageData), fp);
+            fwrite(packageData, 1, sizeRead - 4, fp);
             sequenceNumber = (sequenceNumber + 1) % 255;
             break;
         case CF_END:
@@ -195,6 +216,7 @@ int receiveFile()
             break;
         }
     }
+    fclose(fp);
 }
 
 int sendFile(char *fileToSend)
@@ -274,7 +296,7 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    //sendFile("TESTE.txt");
-    receiveFile();
+    sendFile("pinguim.gif");
+    //receiveFile();
     return 0;
 }
