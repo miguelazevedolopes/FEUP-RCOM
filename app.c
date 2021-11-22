@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 
 #include "macros.h"
+#include "protocol.c"
 
 enum CPType
 {
@@ -14,9 +15,9 @@ enum CPType
 
 enum ControlField
 {
-    DATA = 1,
-    START,
-    END
+    CF_DATA = 1,
+    CF_START,
+    CF_END
 };
 
 typedef struct
@@ -81,7 +82,7 @@ int createControlPackage(int controlField, unsigned char *package)
 
 int createDataPackage(int sequenceNumber, unsigned char *package, unsigned char *data, int dataSize)
 {
-    package[0] = DATA;
+    package[0] = CF_DATA;
     package[1] = sequenceNumber;
     if (dataSize > 256)
     {
@@ -104,7 +105,7 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
 {
     int dataSize = 0;
     int sizeOfDataSize = 0;
-    if (package[0] == (START || END))
+    if (package[0] == (CF_START || CF_END))
     {
         if (package[1] != SIZE)
             return -1;
@@ -122,7 +123,7 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
             f.name[i] = package[5 + sizeOfDataSize + i];
         }
     }
-    else if (package[0] == DATA)
+    else if (package[0] == CF_DATA)
     {
         if (package[1] != sequenceNumber)
             return -1;
@@ -144,6 +145,12 @@ int receiveFile()
     FILE *fp;
 
     int fd = llopen(RECEIVER_PORT, RECEIVER);
+
+    if (fd < 0)
+    {
+        printf("Error opening protocol on the transmitter side.\n");
+        return -1;
+    }
     unsigned char buffer[PACKAGE_SIZE];
     unsigned char *packageData;
     int sizeRead = 0;
@@ -153,7 +160,6 @@ int receiveFile()
     int stop = FALSE;
     while (!stop)
     {
-
         sizeRead = llread(fd, buffer);
 
         if (sizeRead < 0)
@@ -162,19 +168,21 @@ int receiveFile()
         packageType = readPackageData(sequenceNumber, buffer, packageData);
         switch (packageType)
         {
-        case START:
+        case CF_START:
+            printf("primeiro pacote chegou");
             fp = fopen(f.name, "w");
             if (fp == NULL)
             {
-                perror("Error opening file:",f.name);
+                perror(f.name);
                 return (-1);
             }
             break;
-        case DATA:
+        case CF_DATA:
+            printf("primeiro pacote chegou");
             fwrite(packageData, 1, sizeof(packageData), fp);
             sequenceNumber = (sequenceNumber + 1) % 255;
             break;
-        case END:
+        case CF_END:
             stop = TRUE;
             break;
         default:
@@ -185,7 +193,7 @@ int receiveFile()
     free(packageData);
 }
 
-int sendFile(unsigned char *fileToSend)
+int sendFile(char *fileToSend)
 {
     FILE *fp = fopen(fileToSend, "r");
     if (fp == NULL)
@@ -202,22 +210,34 @@ int sendFile(unsigned char *fileToSend)
 
     int fd = llopen(TRANSMITTER_PORT, TRANSMITTER);
 
+    if (fd == -1)
+    {
+        printf("Error opening protocol on the transmitter side.\n");
+        return -1;
+    }
+    else
+        printf("Transmitter side protocol open!\n");
+
     unsigned char package[PACKAGE_SIZE];
+    unsigned char data[PACKAGE_SIZE];
 
-    int packageSize = createControlPackage(START, package);
+    int packageSize = createControlPackage(CF_START, package);
 
-    llwrite(fd, package, packageSize);
+    if (llwrite(fd, package, packageSize) == -1)
+    {
+        printf("Error when writing the START control package");
+    }
 
     int sequenceNumber = 0;
 
     while (1)
     {
-        int sizeRead = fread(package, 1, PACKAGE_SIZE, fp);
+        int sizeRead = fread(data, 1, PACKAGE_SIZE, fp);
         if (sizeRead != PACKAGE_SIZE)
         {
             if (feof(fp))
             {
-                packageSize = createDataPackage(sequenceNumber, package, package, sizeRead);
+                packageSize = createDataPackage(sequenceNumber, package, data, sizeRead);
 
                 llwrite(fd, package, packageSize);
 
@@ -227,14 +247,20 @@ int sendFile(unsigned char *fileToSend)
                 return -1;
         }
 
-        packageSize = createDataPackage(sequenceNumber, package, package, sizeRead);
-        llwrite(fd, package, packageSize);
+        packageSize = createDataPackage(sequenceNumber, package, data, sizeRead);
+        if (llwrite(fd, package, packageSize) == -1)
+        {
+            printf("Error when writing the DATA control package");
+        }
         sequenceNumber = (sequenceNumber + 1) % 255;
     }
 
-    packageSize = createControlPackage(END, package);
+    packageSize = createControlPackage(CF_END, package);
 
-    llwrite(fd, package, packageSize);
+    if (llwrite(fd, package, packageSize) == -1)
+    {
+        printf("Error when writing the END control package");
+    }
 
     fclose(fp);
 
@@ -243,6 +269,7 @@ int sendFile(unsigned char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    sendFile("pinguin.gif");
+    //sendFile("pinguim.gif");
+    receiveFile();
     return 0;
 }

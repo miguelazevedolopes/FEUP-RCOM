@@ -1,3 +1,14 @@
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <limits.h>
+#include "macros.h"
+
 
 struct linkLayer
 {
@@ -106,13 +117,13 @@ unsigned char resendFrame(int controlField);
  * @param controlField information frame's control field
  * @return TRUE if duplicated FALSE if new and -1 if error occured 
  */
-int checkDuplicatedTrama(int controlField);
+int checkDuplicatedFrame(int controlField);
 
 /**
  * Auxiliar function that returns the information frame's control field
  * @return controlField
  */
-int getControlField();
+int getSequenceNumber();
 
 /**
  * Function that sends supervision frame to trasmitter after reading information frame
@@ -137,6 +148,4 @@ int sendConfirmation(int fd, unsigned char responseField);
  * @return Number of characters read; -1 in case of error
  */
 int llread(int fd, unsigned char *buffer);
-
-int main(int argc, unsigned char **argv);
 
