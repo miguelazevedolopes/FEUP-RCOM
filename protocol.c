@@ -468,7 +468,6 @@ unsigned char readSupervisionFrame(int fd){
     unsigned char byteRead;
     enum state st = START;
     unsigned char supervisionFrame[SUPERVISION_FRAME_SIZE];
-    printf("estou dentro da função que lê a supervision frame \n");
     while(st != STOP){
         read(fd, &byteRead, 1);
         st= supervisionEventHandler(byteRead,st, supervisionFrame);
@@ -617,31 +616,22 @@ int readInformationFrame(int fd){
     unsigned char byteRead;
     enum state st = START;
     int buffedFrameSize;
-
-    printf("a ler information frame \n");
     while(st != STOP){
         read(fd, &byteRead, 1);
         st= informationEventHandler(byteRead, st, &buffedFrameSize);
-        printf("byte read : %x \n", byteRead);
-        printf("state : %d \n", st);
-        printf("buffed frame size : %x\n", buffedFrameSize);
     }
-    printf("acabei de ler information frame \n");
     return buffedFrameSize;
 }
 
 int checkBCC2(int numBytesAfterDestuffing){
     int dataSize = numBytesAfterDestuffing -6;
-    printf("dataSize: %x \n", dataSize);
-    printf("bcc : %x \n", l1.frame[numBytesAfterDestuffing-2] );
-    printf("bcc criado por teste: %x \n", createBCC2(dataSize));
     if(l1.frame[numBytesAfterDestuffing-2] == createBCC2(dataSize)) return TRUE;
     return FALSE;
 }
 
-unsigned char nextTrama(int controlField){
+unsigned char nextFrame(int sequenceNumber){
     unsigned char responseByte;
-    if(controlField == 0){
+    if(sequenceNumber == 0){
         responseByte = RR1;
         l1.sequenceNumber = 1;
     }
@@ -649,14 +639,14 @@ unsigned char nextTrama(int controlField){
         responseByte = RR0;
         l1.sequenceNumber = 0;
     }
-    printf("dentro da next trama \n");
-    printf("response byte: %x \n", responseByte);
+    
+    
     return responseByte;
 }
 
-unsigned char resendTrama(int controlField){
+unsigned char resendFrame(int sequenceNumber){
     unsigned char responseByte;
-    if(controlField == 0){
+    if(sequenceNumber == 0){
         responseByte = REJ0;
         l1.sequenceNumber = 0;
     }
@@ -667,13 +657,13 @@ unsigned char resendTrama(int controlField){
     return responseByte;
 }
 
-int checkDuplicatedTrama(int controlField){
-    if (controlField != l1.sequenceNumber) return TRUE;
-    else if (controlField == l1.sequenceNumber) return FALSE;
+int checkDuplicatedFrame(int sequenceNumber){
+    if (sequenceNumber != l1.sequenceNumber) return TRUE;
+    else if (sequenceNumber == l1.sequenceNumber) return FALSE;
     else return -1;
 }
 
-int getControlField(){
+int getSequenceNumber(){
     if (l1.frame[2] == CONTROL_FIELD_0) return 0;
     else if (l1.frame[2] == CONTROL_FIELD_1) return 1;
     return -1;
@@ -687,7 +677,7 @@ int saveFrameInBuffer(unsigned char *buffer, int numBytes){
 
 int sendConfirmation(int fd, unsigned char responseField){
     char supervisionFrame [5];
-    printf("estou a criar supervision frame \n");
+    
     supervisionFrame[0] = FLAG;
     supervisionFrame[1] = 0x03; //valor fixo pq é resposta enviada pelo recetor
     supervisionFrame[2] = responseField;
@@ -696,7 +686,7 @@ int sendConfirmation(int fd, unsigned char responseField){
 
     for(int i = 0; i < SUPERVISION_FRAME_SIZE; i++){
         write(fd, &supervisionFrame[i], 1);
-        printf("supervision frame a ser enviada : %x \n", supervisionFrame[i]);
+        
     }
     return 0;
 
@@ -708,62 +698,53 @@ int llread(int fd, unsigned char *buffer){
     int doneReadingFrame = FALSE;
     int numBytesRead;
     int numBytesAfterDestuffing;
-    int controlField;
+    int sequenceNumber;
     unsigned char responseField;
     while(!doneReadingFrame){
         numBytesRead = readInformationFrame(fd); 
-        printf("READ INFORMATION \n");
-        for(int i = 0 ; i < numBytesRead; i++){
-            printf("%x \n" , l1.frame[i]);
-        }
+        
         numBytesAfterDestuffing = byteDestuffing(numBytesRead);
         if(checkBCC2(numBytesAfterDestuffing) == TRUE){ // F A C BCC1 DATA BCC2 F => information frame
-            printf("BBC2 check \n");
-            controlField = getControlField();
-            printf("control field : %d \n", controlField);
-            if(checkDuplicatedTrama(controlField) == TRUE){
-                printf(" trama duplicada vou ignora la \n");
-                responseField = nextTrama(controlField); //ingoring trama
+
+            sequenceNumber = getSequenceNumber();
+
+            if(checkDuplicatedFrame(sequenceNumber) == TRUE){
+
+                responseField = nextFrame(sequenceNumber); //ingoring trama
             }
-            else if(checkDuplicatedTrama(controlField) == FALSE){
+            else if(checkDuplicatedFrame(sequenceNumber) == FALSE){
                 saveFrameInBuffer(buffer, numBytesAfterDestuffing);
                 doneReadingFrame = 1; 
-                responseField = nextTrama(controlField); //trama sucessfully read
+                responseField = nextFrame(sequenceNumber); //trama sucessfully read
             }
             else return -1;
         }
         else if(checkBCC2(numBytesRead) == FALSE){
-            printf("bcc deu merda \n");
-            controlField = getControlField();
-            if(checkDuplicatedTrama(controlField) == TRUE){
-                printf(" trama duplicada vou ignora la \n");
-                responseField = nextTrama(controlField); //ingoring trama
+
+            sequenceNumber = getSequenceNumber();
+            if(checkDuplicatedFrame(sequenceNumber) == TRUE){
+                responseField = nextFrame(sequenceNumber); //ingoring trama
             }
-            else if(checkDuplicatedTrama(controlField) == FALSE){
-                responseField = resendTrama(controlField); //tinha um erro tem de ser mandada again
+            else if(checkDuplicatedFrame(sequenceNumber) == FALSE){
+                responseField = resendFrame(sequenceNumber); //tinha um erro tem de ser mandada again
             }
             else return -1;
         }
         else return -1;
     }
-    printf("já li na read \n");
-    printf("response field : %x \n", responseField );
     //sends response
-    if (sendConfirmation(fd, responseField) != 0) printf("problem sending supervision frame \n");
+    if (sendConfirmation(fd, responseField) != 0) printf("Error when sending supervision frame \n");
 
-    printf("recetor já mandou a supervision frame \n");
 
     int index = 0;
-    printf("WTF %x \n", l1.frame[DATA_START]);
     for(int i= DATA_START; i < (numBytesAfterDestuffing -2); i++){
-        printf("valor de l1.frame: %x \n " ,l1.frame[i]);
         buffer[index] = l1.frame[i];
         index++;
     }
 
-    printf("dentro do read: %x \n", buffer[0]);
-    printf("dentro do read: %x \n", buffer[1]);
-    printf("dentro do read: %x \n", buffer[2]);
+    // printf("dentro do read: %x \n", buffer[0]);
+    // printf("dentro do read: %x \n", buffer[1]);
+    // printf("dentro do read: %x \n", buffer[2]);
     
     return (numBytesRead-6); // F A C BCC1 DATA BCC2 F => information frame
 }

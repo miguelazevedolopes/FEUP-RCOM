@@ -2,19 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
-#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)       \
-    (byte & 0x80 ? '1' : '0'),     \
-        (byte & 0x40 ? '1' : '0'), \
-        (byte & 0x20 ? '1' : '0'), \
-        (byte & 0x10 ? '1' : '0'), \
-        (byte & 0x08 ? '1' : '0'), \
-        (byte & 0x04 ? '1' : '0'), \
-        (byte & 0x02 ? '1' : '0'), \
-        (byte & 0x01 ? '1' : '0')
-
-#define PACKAGE_SIZE 1000
+#include "macros.h"
 
 enum CPType
 {
@@ -31,16 +21,10 @@ enum ControlField
 
 typedef struct
 {
-    char *name;
+    unsigned char *name;
     int size;
-    char *contents;
+    unsigned char *contents;
 } file;
-
-// typedef struct
-// {
-//     int fileSize;
-//     char *fileName;
-// } controlPackage;
 
 file f;
 
@@ -54,7 +38,7 @@ int power(int base, int exponent)
     return result;
 }
 
-int createControlPackage(int controlField, char *package)
+int createControlPackage(int controlField, unsigned char *package)
 {
     package[0] = controlField;
     package[1] = SIZE;
@@ -95,7 +79,7 @@ int createControlPackage(int controlField, char *package)
     return 5 + size + strlen(f.name);
 }
 
-int createDataPackage(int sequenceNumber, char *package, char *data, int dataSize)
+int createDataPackage(int sequenceNumber, unsigned char *package, unsigned char *data, int dataSize)
 {
     package[0] = DATA;
     package[1] = sequenceNumber;
@@ -116,7 +100,7 @@ int createDataPackage(int sequenceNumber, char *package, char *data, int dataSiz
     return dataSize + 4;
 }
 
-int readPackageData(int sequenceNumber, char *package, char *data)
+int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *data)
 {
     int dataSize = 0;
     int sizeOfDataSize = 0;
@@ -143,6 +127,7 @@ int readPackageData(int sequenceNumber, char *package, char *data)
         if (package[1] != sequenceNumber)
             return -1;
         dataSize = package[2] * 256 + package[3];
+        data = (unsigned char *)malloc(dataSize);
         for (int i = 0; i < dataSize; i++)
         {
             data[i] = package[4 + i];
@@ -154,61 +139,87 @@ int readPackageData(int sequenceNumber, char *package, char *data)
     return package[0];
 }
 
-int receiveFile(char *filePath)
+int receiveFile()
 {
-    FILE *fp = open(filePath, "w");
-    if (fp == NULL)
+    FILE *fp;
+
+    int fd = llopen(RECEIVER_PORT, RECEIVER);
+    unsigned char buffer[PACKAGE_SIZE];
+    unsigned char *packageData;
+    int sizeRead = 0;
+    int sequenceNumber = 0;
+    int packageType = -1;
+
+    int stop = FALSE;
+    while (!stop)
     {
-        perror("Error in opening file");
-        return (-1);
+
+        sizeRead = llread(fd, buffer);
+
+        if (sizeRead < 0)
+            printf("Error reading data package");
+
+        packageType = readPackageData(sequenceNumber, buffer, packageData);
+        switch (packageType)
+        {
+        case START:
+            fp = fopen(f.name, "w");
+            if (fp == NULL)
+            {
+                perror("Error opening file:",f.name);
+                return (-1);
+            }
+            break;
+        case DATA:
+            fwrite(packageData, 1, sizeof(packageData), fp);
+            sequenceNumber = (sequenceNumber + 1) % 255;
+            break;
+        case END:
+            stop = TRUE;
+            break;
+        default:
+            break;
+        }
     }
 
-    //llopen()
-    while(1){
-
-        //llread();
-
-        if(readPackageData()==(START)){
-
-        }
-        else if(readPackageData()==DATA){
-            fwrite(data,1,sizeof(data),fp);
-        }
-
-        
-    }
-    
+    free(packageData);
 }
 
-int sendFile(char *fileToSend)
+int sendFile(unsigned char *fileToSend)
 {
-    FILE *fp = open(fileToSend, "r");
+    FILE *fp = fopen(fileToSend, "r");
     if (fp == NULL)
     {
         perror("Error in opening file");
         return (-1);
     }
 
-    //llopen("/dev/ttyS1",TRANSMITTER);
+    f.name = fileToSend;
 
-    char package[PACKAGE_SIZE];
+    fseek(fp, 0, SEEK_END);
+    f.size = (int)ftell(fp);
+    rewind(fp);
 
-    createControlPackage(START, package);
+    int fd = llopen(TRANSMITTER_PORT, TRANSMITTER);
 
-    //llwrite(package) enviar control package
+    unsigned char package[PACKAGE_SIZE];
+
+    int packageSize = createControlPackage(START, package);
+
+    llwrite(fd, package, packageSize);
 
     int sequenceNumber = 0;
 
     while (1)
     {
-        int successfullyRead = fread(package, 1, PACKAGE_SIZE, fp);
-        if (successfullyRead != PACKAGE_SIZE)
+        int sizeRead = fread(package, 1, PACKAGE_SIZE, fp);
+        if (sizeRead != PACKAGE_SIZE)
         {
             if (feof(fp))
             {
-                createDataPackage(sequenceNumber, package, package, successfullyRead);
+                packageSize = createDataPackage(sequenceNumber, package, package, sizeRead);
 
-                //llwrite(package) escreve pacote
+                llwrite(fd, package, packageSize);
 
                 break;
             }
@@ -216,14 +227,14 @@ int sendFile(char *fileToSend)
                 return -1;
         }
 
-        createDataPackage(sequenceNumber, package, package, successfullyRead);
+        packageSize = createDataPackage(sequenceNumber, package, package, sizeRead);
+        llwrite(fd, package, packageSize);
         sequenceNumber = (sequenceNumber + 1) % 255;
-        //llwrite(package) escreve pacote
     }
 
-    createControlPackage(END, package);
+    packageSize = createControlPackage(END, package);
 
-    //llwrite(package) enviar control package
+    llwrite(fd, package, packageSize);
 
     fclose(fp);
 
@@ -232,23 +243,6 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    f.name = "pinguin.gif";
-    f.size = 40;
-    char package[1000];
-    int packageSize = createControlPackage(START, package);
-    printf("C: %d\n", package[0]);
-    printf("T: %d\n", package[1]);
-    printf("L: %d\n", package[2]);
-    for (int i = 0; i < package[2]; i++)
-    {
-        printf(BYTE_TO_BINARY_PATTERN "\n", BYTE_TO_BINARY(package[3 + i]));
-    }
-    printf("T: %d\n", package[3 + package[2]]);
-    printf("L: %d\n", package[4 + package[2]]);
-    for (int i = 5 + package[2]; i < packageSize; i++)
-    {
-        printf("%c", package[i]);
-    }
-    printf("\n");
+    sendFile("pinguin.gif");
     return 0;
 }
