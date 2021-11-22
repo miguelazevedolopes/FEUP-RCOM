@@ -23,7 +23,7 @@ int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *
     {
         if (controlField == DISC)
             frame[1] = 0x01;
-        else if (controlField == (UA || RR0 || RR1 || REJ0 || REJ1))
+        else if ((controlField == UA) || (controlField == RR0) || (controlField == RR1) || (controlField == REJ0) || (controlField == REJ1))
             frame[1] = 0x03;
     }
     frame[2] = controlField;
@@ -31,32 +31,24 @@ int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *
     frame[4] = FLAG;
 }
 
-int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned char responseControlField)
+int sendSupervisionFrame(int fd, int user, unsigned char controlField)
 {
 
     unsigned char frameToSend[SUPERVISION_FRAME_SIZE];
-    unsigned char responseFrame[SUPERVISION_FRAME_SIZE];
 
     if (user == TRANSMITTER)
     {
         createSuperVisionFrame(TRANSMITTER, controlField, frameToSend); //Creates the frame to send
-        createSuperVisionFrame(RECEIVER, responseControlField, responseFrame);
     }
     else if (user == RECEIVER)
     {
         createSuperVisionFrame(RECEIVER, controlField, frameToSend); //Creates the frame to send
-        createSuperVisionFrame(TRANSMITTER, responseControlField, responseFrame);
     }
 
-    unsigned char responseBuffer[5];
+    enum state st = START;
+    unsigned char responseByte;
 
-    int FLAG_RCV = FALSE;
-    int A_RCV = FALSE;
-    int C_RCV = FALSE;
-    int BCC_OK = FALSE;
-    int STOP = FALSE;
-
-    while (try <= NUMBER_ATTEMPTS)
+    while (try <= NUMBER_ATTEMPTS && st != STOP)
     {
         if (flag)
         {
@@ -70,49 +62,13 @@ int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned 
             }
             alarm(ALARM_WAIT_TIME);
             flag = 0;
+            st = START;
         }
-
-        if (responseControlField == NONE)
-        {
-            alarm(0);
-            return 0;
-        }
-        else
-        {
-            if (read(fd, responseBuffer, 1) < 0)
-            {
-                perror("Error reading supervision frame");
-                return -1;
-            };
-
-            if (responseBuffer[0] == responseFrame[0])
-            {
-                FLAG_RCV = TRUE;
-                if (A_RCV && C_RCV && BCC_OK && FLAG_RCV)
-                {
-                    alarm(0);
-                    return 0;
-                }
-            }
-            else if (responseBuffer[0] == responseFrame[1])
-            {
-                if (FLAG_RCV && !A_RCV)
-                    A_RCV = TRUE;
-            }
-            else if (responseBuffer[0] == responseFrame[2])
-            {
-                if (FLAG_RCV && A_RCV)
-                    C_RCV = TRUE;
-            }
-            else if (responseBuffer[0] == 0x03 ^ responseFrame[3])
-            {
-                if (FLAG_RCV && A_RCV && C_RCV)
-                {
-                    BCC_OK = TRUE;
-                }
-            }
-        }
+        if (read(fd, &responseByte, 1) < 0)
+            printf("Error when reading\n");
+        st = supervisionEventHandler(responseByte, st, l1.frame);
     }
+    alarm(0);
     if (try == NUMBER_ATTEMPTS + 1)
     {
         return -1;
@@ -120,55 +76,21 @@ int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned 
     return 0;
 }
 
-int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned char responseControlField)
+int receiveSupervisionFrame(int fd, unsigned char responseControlField)
 {
 
-    unsigned char frameToReceive[SUPERVISION_FRAME_SIZE];
+    enum state st = START;
+    unsigned char responseBuffer;
+    while (st != STOP)
+    {
+        if (read(fd, &responseBuffer, 1) < 0)
+            printf("Error when reading\n");
+        st = supervisionEventHandler(responseBuffer, st, l1.frame);
+    }
+
     unsigned char frameToSend[SUPERVISION_FRAME_SIZE];
-
-    createSuperVisionFrame(TRANSMITTER, expectedControlField, frameToReceive);
-
     createSuperVisionFrame(RECEIVER, responseControlField, frameToSend);
 
-    int FLAG_RCV = FALSE;
-    int A_RCV = FALSE;
-    int C_RCV = FALSE;
-    int BCC_OK = FALSE;
-    int STOP = FALSE;
-
-    unsigned char responseBuffer[5];
-    while (!STOP)
-    {
-        if (read(fd, responseBuffer, 1) < 0)
-            printf("Error when reading\n");
-        printf("Leu %x\n", responseBuffer[0]);
-        if (responseBuffer[0] == frameToReceive[0])
-        {
-            FLAG_RCV = TRUE;
-            if (A_RCV && C_RCV && BCC_OK && FLAG_RCV)
-            {
-                STOP = TRUE;
-            }
-        }
-        else if (responseBuffer[0] == frameToReceive[1])
-        {
-            if (FLAG_RCV && !A_RCV)
-            {
-                A_RCV = TRUE;
-            }
-            else if (FLAG_RCV && A_RCV)
-            {
-                C_RCV = TRUE;
-            }
-        }
-        else if (responseBuffer[0] == frameToReceive[3])
-        {
-            if (FLAG_RCV && A_RCV && C_RCV)
-            {
-                BCC_OK = TRUE;
-            }
-        }
-    }
     for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
     {
         write(fd, &(frameToSend[i]), 1);
@@ -215,7 +137,7 @@ int llopen(unsigned char *port, int user)
 
         (void)signal(SIGALRM, alarmHandler); //Alarm setup
 
-        if (sendSupervisionFrame(fd, TRANSMITTER, SET, UA) < 0)
+        if (sendSupervisionFrame(fd, TRANSMITTER, SET) < 0)
         { //Sends the frame to the receiver
             printf("No response received. Gave up after %d tries\n", NUMBER_ATTEMPTS);
             return -1;
@@ -233,7 +155,7 @@ int llopen(unsigned char *port, int user)
             perror("tcsetattr");
             return -1;
         }
-        receiveSupervisionFrame(fd, SET, UA);
+        receiveSupervisionFrame(fd, UA);
     }
 
     return fd;
@@ -247,16 +169,16 @@ int llclose(int fd, int user)
 
         (void)signal(SIGALRM, alarmHandler); //Alarm setup
 
-        if (sendSupervisionFrame(fd, TRANSMITTER, DISC, DISC) < 0)
+        if (sendSupervisionFrame(fd, TRANSMITTER, DISC) < 0)
         { //Sends the frame to the receiver
             printf("No response received. Gave up after %d tries", NUMBER_ATTEMPTS);
             exit(1);
         }
-        receiveSupervisionFrame(fd, DISC, UA);
+        receiveSupervisionFrame(fd, UA);
     }
     else if (user == RECEIVER)
     {
-        receiveSupervisionFrame(fd, DISC, DISC);
+        receiveSupervisionFrame(fd, DISC);
     }
 }
 
@@ -394,7 +316,7 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
         if (byteRead == FLAG)
             break;
         else if (byteRead == 0x03)
-        { // campo de endereço sempre 0x03 nas tramas de informação
+        {
             st = A_RCV;
             supervisionFrame[1] = byteRead;
         }
@@ -406,6 +328,11 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
         if (byteRead == FLAG)
         {
             st = FLAG_RCV;
+        }
+        else if ((byteRead == SET) || (byteRead = UA))
+        {
+            st = C_RCV;
+            supervisionFrame[2] = byteRead;
         }
         else if (l1.sequenceNumber == 0)
         {

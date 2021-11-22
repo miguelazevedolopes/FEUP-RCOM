@@ -9,10 +9,9 @@
 #include <limits.h>
 #include "macros.h"
 
-
 struct linkLayer
 {
-    unsigned char port[20];                 /*Dispositivo /dev/ttySx, x = 0, 1*/
+    unsigned char port[20];        /*Dispositivo /dev/ttySx, x = 0, 1*/
     int baudRate;                  /*Velocidade de transmissão*/
     unsigned int sequenceNumber;   /*Número de sequência da trama: 0, 1*/
     unsigned int timeout;          /*Valor do temporizador }: 1 s*/
@@ -23,7 +22,15 @@ struct linkLayer
 
 struct linkLayer l1;
 
-enum state { START, FLAG_RCV, A_RCV, C_RCV, BCC_OK, STOP};
+enum state
+{
+    START,
+    FLAG_RCV,
+    A_RCV,
+    C_RCV,
+    BCC_OK,
+    STOP
+};
 
 int flag = 1, try = 1;
 
@@ -31,14 +38,13 @@ void alarmHandler();
 
 int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *frame);
 
-int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned char responseControlField);
+int sendSupervisionFrame(int fd, int user, unsigned char controlField);
 
-int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned char responseControlField);
+int receiveSupervisionFrame(int fd, unsigned char responseControlField);
 
 int llopen(unsigned char *port, int user);
 
 int llclose(int fd, int user);
-
 
 /**
  * Function that creates BCC2
@@ -71,29 +77,28 @@ int createInformationFrame(unsigned char *data, int dataSize);
  */
 int byteDestuffing(int buffedDataSize);
 
-
 /**
  * Function does byte Stuffing to a frame
  * @param dataSize Size of data that will be used to create BCC2
  * @return BCC2
  */
-enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsigned char* supervisionFrame);
+enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsigned char *supervisionFrame);
 
 unsigned char readSupervisionFrame(int fd);
 
-int llwrite(int fd, unsigned char * buffer, int length);
+int llwrite(int fd, unsigned char *buffer, int length);
 
 /**
  * Event handler to update the state according to the byteRead
  * @
- */ 
+ */
 enum state informationEventHandler(unsigned char byteRead, enum state st, int *buffedFrameSize);
 
 /**
  * Function that reads information frame
  * @param fd File descriptor of the serial port
  * @return buffedFrameSize : size of information frame read
- */ 
+ */
 int readInformationFrame(int fd);
 
 int checkBCC2(int numBytesAfterDestuffing);
@@ -140,7 +145,6 @@ int saveFrameInBuffer(unsigned char *buffer, int numBytesAfterDestuffing);
  */
 int sendConfirmation(int fd, unsigned char responseField);
 
-
 /**
  * Function that reads the information written in the serial port
  * @param fd File descriptor of the serial port
@@ -148,4 +152,3 @@ int sendConfirmation(int fd, unsigned char responseField);
  * @return Number of characters read; -1 in case of error
  */
 int llread(int fd, unsigned char *buffer);
-

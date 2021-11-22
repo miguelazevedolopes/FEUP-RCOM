@@ -151,6 +151,7 @@ int receiveFile()
         printf("Error opening protocol on the transmitter side.\n");
         return -1;
     }
+    else printf("Receiver protocol open!\n");
     unsigned char buffer[PACKAGE_SIZE];
     unsigned char *packageData;
     int sizeRead = 0;
@@ -216,7 +217,7 @@ int sendFile(char *fileToSend)
         return -1;
     }
     else
-        printf("Transmitter side protocol open!\n");
+        printf("Transmitter protocol open!\n");
 
     unsigned char package[PACKAGE_SIZE];
     unsigned char data[PACKAGE_SIZE];
@@ -269,7 +270,7 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    //sendFile("pinguim.gif");
-    receiveFile();
+    sendFile("pinguim.gif");
+    //receiveFile();
     return 0;
 }
