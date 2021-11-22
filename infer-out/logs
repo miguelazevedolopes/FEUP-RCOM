@@ -1,0 +1,238 @@
+[12776][      debug] Loading models took 43.63ms
+[12777][      debug] Sqlite write daemon: starting up
+[12777][      debug] Sqlite write daemon: set up complete, waiting for connections
+[12776][environment] CWD = /home/sofia/Desktop/MIEIC/RCOM
+[12776][environment] No .inferconfig file found
+[12776][environment] Project root = /home/sofia/Desktop/MIEIC/RCOM
+[12776][environment] INFER_ARGS =   
+[12776][environment] command line arguments:   infer
+[12776][environment] Available memory at startup: 9824 MB
+[12776][environment] Active checkers: self-in-block (C/C++/ObjC), starvation (C/C++/ObjC, Java), uninit (C/C++/ObjC), siof (C/C++/ObjC), racerd (C/C++/ObjC, Java), liveness (C/C++/ObjC), inefficient-keyset-iterator (Java), fragment-retains-view (Java), biabduction (C/C++/ObjC, Java)
+[12776][environment] Scheduler: file
+[12776][environment] Cores used: 6
+[12776][environment] Infer version v1.0.0
+[12776][environment] Copyright 2009 - present Facebook. All Rights Reserved.
+[12776][environment] 
+[12776][      debug] GC stats for capture:
+[12776][      debug]   minor_words: 50
+[12776][      debug]   promoted_words: 0
+[12776][      debug]   major_words: 0
+[12776][      debug]   minor_collections: 0
+[12776][      debug]   major_collections: 0
+[12776][      debug]   compactions: 0
+[12776][      debug]   top_heap_words: 760832
+[12776][      debug]   
+[12776][  user warn] Nothing to compile. Have you run `infer capture`? Try cleaning the build first.
+[12776][   progress] There was nothing to analyze.
+[12776][      debug] GC stats for report:
+[12776][      debug]   minor_words: 1825
+[12776][      debug]   promoted_words: 0
+[12776][      debug]   major_words: 0
+[12776][      debug]   minor_collections: 0
+[12776][      debug]   major_collections: 0
+[12776][      debug]   compactions: 0
+[12776][      debug]   top_heap_words: 760832
+[12776][      debug]   
+[12776][      debug] GC stats for main_process_full:
+[12776][      debug]   minor_words: 1.54842e+06
+[12776][      debug]   promoted_words: 176896
+[12776][      debug]   major_words: 685102
+[12776][      debug]   minor_collections: 11
+[12776][      debug]   major_collections: 3
+[12776][      debug]   compactions: 1
+[12776][      debug]   top_heap_words: 760832
+[12776][      debug]   
+[12777][      debug] Sqlite write daemon: terminating
+
+[13193][      phase] ============================================================
+[13193][      phase] = New infer execution begins
+[13193][      phase] ============================================================
+[13194][      debug] Sqlite write daemon: starting up
+[13194][      debug] Sqlite write daemon: set up complete, waiting for connections
+[13193][      phase] ============================================================
+[13193][      phase] = New infer execution begins
+[13193][      phase] ============================================================
+[13193][environment] CWD = /home/sofia/Desktop/MIEIC/RCOM
+[13193][environment] No .inferconfig file found
+[13193][environment] Project root = /home/sofia/Desktop/MIEIC/RCOM
+[13193][environment] INFER_ARGS =   
+[13193][environment] command line arguments:   infer
+[13193][environment] Available memory at startup: 9822 MB
+[13193][environment] Active checkers: self-in-block (C/C++/ObjC), starvation (C/C++/ObjC, Java), uninit (C/C++/ObjC), siof (C/C++/ObjC), racerd (C/C++/ObjC, Java), liveness (C/C++/ObjC), inefficient-keyset-iterator (Java), fragment-retains-view (Java), biabduction (C/C++/ObjC, Java)
+[13193][environment] Scheduler: file
+[13193][environment] Cores used: 6
+[13193][environment] Infer version v1.0.0
+[13193][environment] Copyright 2009 - present Facebook. All Rights Reserved.
+[13193][environment] 
+[13193][      debug] GC stats for capture:
+[13193][      debug]   minor_words: 50
+[13193][      debug]   promoted_words: 0
+[13193][      debug]   major_words: 0
+[13193][      debug]   minor_collections: 0
+[13193][      debug]   major_collections: 0
+[13193][      debug]   compactions: 0
+[13193][      debug]   top_heap_words: 249856
+[13193][      debug]   
+[13193][  user warn] Nothing to compile. Have you run `infer capture`? Try cleaning the build first.
+[13193][   progress] There was nothing to analyze.
+[13193][      debug] GC stats for report:
+[13193][      debug]   minor_words: 1825
+[13193][      debug]   promoted_words: 0
+[13193][      debug]   major_words: 0
+[13193][      debug]   minor_collections: 0
+[13193][      debug]   major_collections: 0
+[13193][      debug]   compactions: 0
+[13193][      debug]   top_heap_words: 249856
+[13193][      debug]   
+[13193][      debug] GC stats for main_process_full:
+[13193][      debug]   minor_words: 1.45836e+06
+[13193][      debug]   promoted_words: 176896
+[13193][      debug]   major_words: 193252
+[13193][      debug]   minor_collections: 11
+[13193][      debug]   major_collections: 3
+[13193][      debug]   compactions: 1
+[13193][      debug]   top_heap_words: 249856
+[13193][      debug]   
+[13194][      debug] Sqlite write daemon: terminating
+
+[13416][      phase] ============================================================
+[13416][      phase] = New infer execution begins
+[13416][      phase] ============================================================
+[13417][      debug] Sqlite write daemon: starting up
+[13417][      debug] Sqlite write daemon: set up complete, waiting for connections
+[13416][      phase] ============================================================
+[13416][      phase] = New infer execution begins
+[13416][      phase] ============================================================
+[13416][environment] CWD = /home/sofia/Desktop/MIEIC/RCOM
+[13416][environment] No .inferconfig file found
+[13416][environment] Project root = /home/sofia/Desktop/MIEIC/RCOM
+[13416][environment] INFER_ARGS =   @/tmp/args.tmp.9a6c69
+[13416][environment] command line arguments:   infer run
+[13416][environment] Available memory at startup: 9639 MB
+[13416][environment] Active checkers: self-in-block (C/C++/ObjC), starvation (C/C++/ObjC, Java), uninit (C/C++/ObjC), siof (C/C++/ObjC), racerd (C/C++/ObjC, Java), liveness (C/C++/ObjC), inefficient-keyset-iterator (Java), fragment-retains-view (Java), biabduction (C/C++/ObjC, Java)
+[13416][environment] Scheduler: file
+[13416][environment] Cores used: 6
+[13416][environment] Infer version v1.0.0
+[13416][environment] Copyright 2009 - present Facebook. All Rights Reserved.
+[13416][environment] 
+[13416][      debug] GC stats for capture:
+[13416][      debug]   minor_words: 50
+[13416][      debug]   promoted_words: 0
+[13416][      debug]   major_words: 0
+[13416][      debug]   minor_collections: 0
+[13416][      debug]   major_collections: 0
+[13416][      debug]   compactions: 0
+[13416][      debug]   top_heap_words: 249856
+[13416][      debug]   
+[13416][  user warn] Nothing to compile. Have you run `infer capture`? Try cleaning the build first.
+[13416][   progress] There was nothing to analyze.
+[13416][      debug] GC stats for report:
+[13416][      debug]   minor_words: 1825
+[13416][      debug]   promoted_words: 0
+[13416][      debug]   major_words: 0
+[13416][      debug]   minor_collections: 0
+[13416][      debug]   major_collections: 0
+[13416][      debug]   compactions: 0
+[13416][      debug]   top_heap_words: 249856
+[13416][      debug]   
+[13416][      debug] GC stats for main_process_full:
+[13416][      debug]   minor_words: 1.459e+06
+[13416][      debug]   promoted_words: 176926
+[13416][      debug]   major_words: 193282
+[13416][      debug]   minor_collections: 11
+[13416][      debug]   major_collections: 3
+[13416][      debug]   compactions: 1
+[13416][      debug]   top_heap_words: 249856
+[13416][      debug]   
+[13417][      debug] Sqlite write daemon: terminating
+
+[13783][      phase] ============================================================
+[13783][      phase] = New infer execution begins
+[13783][      phase] ============================================================
+[13784][      debug] Sqlite write daemon: starting up
+[13784][      debug] Sqlite write daemon: set up complete, waiting for connections
+[13783][      phase] ============================================================
+[13783][      phase] = New infer execution begins
+[13783][      phase] ============================================================
+[13783][environment] CWD = /home/sofia/Desktop/MIEIC/RCOM
+[13783][environment] No .inferconfig file found
+[13783][environment] Project root = /home/sofia/Desktop/MIEIC/RCOM
+[13783][environment] INFER_ARGS =   @/tmp/args.tmp.919813
+[13783][environment] command line arguments:   infer run
+[13783][environment] Available memory at startup: 9492 MB
+[13783][environment] Active checkers: self-in-block (C/C++/ObjC), starvation (C/C++/ObjC, Java), uninit (C/C++/ObjC), siof (C/C++/ObjC), racerd (C/C++/ObjC, Java), liveness (C/C++/ObjC), inefficient-keyset-iterator (Java), fragment-retains-view (Java), biabduction (C/C++/ObjC, Java)
+[13783][environment] Scheduler: file
+[13783][environment] Cores used: 6
+[13783][environment] Infer version v1.0.0
+[13783][environment] Copyright 2009 - present Facebook. All Rights Reserved.
+[13783][environment] 
+[13783][      debug] GC stats for capture:
+[13783][      debug]   minor_words: 50
+[13783][      debug]   promoted_words: 0
+[13783][      debug]   major_words: 0
+[13783][      debug]   minor_collections: 0
+[13783][      debug]   major_collections: 0
+[13783][      debug]   compactions: 0
+[13783][      debug]   top_heap_words: 249856
+[13783][      debug]   
+[13783][  user warn] Nothing to compile. Have you run `infer capture`? Try cleaning the build first.
+[13783][   progress] There was nothing to analyze.
+[13783][      debug] GC stats for report:
+[13783][      debug]   minor_words: 1825
+[13783][      debug]   promoted_words: 0
+[13783][      debug]   major_words: 0
+[13783][      debug]   minor_collections: 0
+[13783][      debug]   major_collections: 0
+[13783][      debug]   compactions: 0
+[13783][      debug]   top_heap_words: 249856
+[13783][      debug]   
+[13783][      debug] GC stats for main_process_full:
+[13783][      debug]   minor_words: 1.45937e+06
+[13783][      debug]   promoted_words: 176926
+[13783][      debug]   major_words: 193282
+[13783][      debug]   minor_collections: 11
+[13783][      debug]   major_collections: 3
+[13783][      debug]   compactions: 1
+[13783][      debug]   top_heap_words: 249856
+[13783][      debug]   
+[13784][      debug] Sqlite write daemon: terminating
+
+[13815][      phase] ============================================================
+[13815][      phase] = New infer execution begins
+[13815][      phase] ============================================================
+[13816][      debug] Sqlite write daemon: starting up
+[13816][      debug] Sqlite write daemon: set up complete, waiting for connections
+[13815][      phase] ============================================================
+[13815][      phase] = New infer execution begins
+[13815][      phase] ============================================================
+[13815][environment] CWD = /home/sofia/Desktop/MIEIC/RCOM
+[13815][environment] No .inferconfig file found
+[13815][environment] Project root = /home/sofia/Desktop/MIEIC/RCOM
+[13815][environment] INFER_ARGS =   @/tmp/args.tmp.791b84
+[13815][environment] command line arguments:   infer capture
+[13815][environment] Available memory at startup: 9498 MB
+[13815][environment] Active checkers: self-in-block (C/C++/ObjC), starvation (C/C++/ObjC, Java), uninit (C/C++/ObjC), siof (C/C++/ObjC), racerd (C/C++/ObjC, Java), liveness (C/C++/ObjC), inefficient-keyset-iterator (Java), fragment-retains-view (Java), biabduction (C/C++/ObjC, Java)
+[13815][environment] Scheduler: file
+[13815][environment] Cores used: 6
+[13815][environment] Infer version v1.0.0
+[13815][environment] Copyright 2009 - present Facebook. All Rights Reserved.
+[13815][environment] 
+[13815][      debug] GC stats for capture:
+[13815][      debug]   minor_words: 50
+[13815][      debug]   promoted_words: 0
+[13815][      debug]   major_words: 0
+[13815][      debug]   minor_collections: 0
+[13815][      debug]   major_collections: 0
+[13815][      debug]   compactions: 0
+[13815][      debug]   top_heap_words: 249856
+[13815][      debug]   
+[13815][      debug] GC stats for main_process_full:
+[13815][      debug]   minor_words: 1.45252e+06
+[13815][      debug]   promoted_words: 176926
+[13815][      debug]   major_words: 193282
+[13815][      debug]   minor_collections: 11
+[13815][      debug]   major_collections: 3
+[13815][      debug]   compactions: 1
+[13815][      debug]   top_heap_words: 249856
+[13815][      debug]   
+[13816][      debug] Sqlite write daemon: terminating
