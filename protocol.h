@@ -72,8 +72,17 @@ unsigned char readSupervisionFrame(int fd);
 
 int llwrite(int fd, unsigned char * buffer, int length);
 
+/**
+ * Event handler to update the state according to the byteRead
+ * @
+ */ 
 enum state informationEventHandler(unsigned char byteRead, enum state st, int *buffedFrameSize);
 
+/**
+ * Function that reads information frame
+ * @param fd File descriptor of the serial port
+ * @return buffedFrameSize : size of information frame read
+ */ 
 int readInformationFrame(int fd);
 
 int checkBCC2(int numBytesAfterDestuffing);
