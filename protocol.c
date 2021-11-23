@@ -323,7 +323,7 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
         {
             st = FLAG_RCV;
         }
-        else if ((byteRead == SET) || (byteRead = UA))
+        else if ((byteRead == SET) || (byteRead == UA))
         {
             st = C_RCV;
             supervisionFrame[2] = byteRead;
