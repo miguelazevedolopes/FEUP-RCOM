@@ -107,7 +107,11 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
     if (package[0] == CF_START)
     {
         if (package[1] != SIZE)
+        {
+            printf("Wrong type field, should be SIZE\n");
             return -1;
+        }
+
         sizeOfDataSize = package[2];
         for (int i = 0; i < sizeOfDataSize; i++)
         {
@@ -115,7 +119,10 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
         }
         f.size = dataSize;
         if (package[3 + sizeOfDataSize] != NAME)
+        {
+            printf("Wrong type field, should be NAME\n");
             return -1;
+        }
         dataSize = package[4 + sizeOfDataSize];
         f.name = (unsigned char *)malloc(dataSize);
         for (int i = 0; i < dataSize; i++)
@@ -126,7 +133,10 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
     else if (package[0] == CF_END)
     {
         if (package[1] != SIZE)
+        {
+            printf("Wrong type field, should be SIZE\n");
             return -1;
+        }
         sizeOfDataSize = package[2];
         for (int i = 0; i < sizeOfDataSize; i++)
         {
@@ -134,18 +144,21 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
         }
         if (f.size != dataSize)
         {
-            printf("END package doesn't match with START package");
+            printf("END package doesn't match with START package\n");
             return -1;
         }
 
         if (package[3 + sizeOfDataSize] != NAME)
+        {
+            printf("Wrong type field, should be NAME\n");
             return -1;
+        }
         dataSize = package[4 + sizeOfDataSize];
         for (int i = 0; i < dataSize; i++)
         {
             if (f.name[i] != package[5 + sizeOfDataSize + i])
             {
-                printf("END package doesn't match with START package");
+                printf("END package doesn't match with START package\n");
                 return -1;
             }
         }
@@ -153,7 +166,10 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
     else if (package[0] == CF_DATA)
     {
         if (package[1] != sequenceNumber)
+        {
+            printf("Wrong sequence number\n");
             return -1;
+        }
         dataSize = package[2] * 256 + package[3];
         for (int i = 0; i < dataSize; i++)
         {
@@ -161,7 +177,10 @@ int readPackageData(int sequenceNumber, unsigned char *package, unsigned char *d
         }
     }
     else
+    {
+        printf("Not a valid package\n");
         return -1;
+    }
 
     return package[0];
 }
@@ -180,7 +199,7 @@ int receiveFile()
     else
         printf("Receiver protocol open!\n");
     unsigned char buffer[PACKAGE_SIZE]; //buffer size is allocated inside the llread function
-    unsigned char packageData[PACKAGE_SIZE];
+    unsigned char packageData[PACKAGE_DATA_SIZE];
     int sizeRead = 0;
     int sequenceNumber = 0;
     int packageType = -1;
@@ -192,7 +211,6 @@ int receiveFile()
         if (sizeRead < 0)
             printf("Error reading data package");
         packageType = readPackageData(sequenceNumber, buffer, packageData);
-
         switch (packageType)
         {
         case CF_START:
@@ -208,15 +226,15 @@ int receiveFile()
             sequenceNumber = (sequenceNumber + 1) % 255;
             break;
         case CF_END:
-            printf("saiu4");
             stop = TRUE;
             break;
         default:
-            printf("saiu5");
             break;
         }
     }
     fclose(fp);
+    if (llclose(fd, RECEIVER) != -1)
+        printf("Receiver protocol closed!\n");
 }
 
 int sendFile(char *fileToSend)
@@ -245,7 +263,7 @@ int sendFile(char *fileToSend)
         printf("Transmitter protocol open!\n");
 
     unsigned char package[PACKAGE_SIZE];
-    unsigned char data[PACKAGE_SIZE];
+    unsigned char data[PACKAGE_DATA_SIZE];
 
     int packageSize = createControlPackage(CF_START, package);
     printf("Criou pacote de controlo\n");
@@ -258,22 +276,24 @@ int sendFile(char *fileToSend)
 
     while (1)
     {
-        int sizeRead = fread(data, 1, PACKAGE_SIZE, fp);
-        if (sizeRead != PACKAGE_SIZE)
+        int sizeRead = fread(data, 1, PACKAGE_DATA_SIZE, fp);
+        packageSize = createDataPackage(sequenceNumber, package, data, sizeRead);
+        if (sizeRead != PACKAGE_DATA_SIZE)
         {
             if (feof(fp))
             {
-                packageSize = createDataPackage(sequenceNumber, package, data, sizeRead);
 
-                llwrite(fd, package, packageSize);
-
+                if (llwrite(fd, package, packageSize) == -1)
+                {
+                    printf("Error when writing the last data package");
+                }
+                printf("Ultimo pacote foi escrito\n");
                 break;
             }
             else
                 return -1;
         }
 
-        packageSize = createDataPackage(sequenceNumber, package, data, sizeRead);
         if (llwrite(fd, package, packageSize) == -1)
         {
             printf("Error when writing the DATA control package");
@@ -291,13 +311,14 @@ int sendFile(char *fileToSend)
     fclose(fp);
 
     printf("Finished sending file\n");
-    //llclose();
+    if (llclose(fd, TRANSMITTER) != -1)
+        printf("Transmitter protocol closed!\n");
 }
 
 int main(int argc, char const *argv[])
 {
-    
-    sendFile("TESTE.txt");
-    //receiveFile();
+
+    //sendFile("pinguim.gif");
+    receiveFile();
     return 0;
 }

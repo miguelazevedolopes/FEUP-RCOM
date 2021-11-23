@@ -48,3 +48,4 @@
         (byte & 0x01 ? '1' : '0')
 
 #define PACKAGE_SIZE 1024
+#define PACKAGE_DATA_SIZE 1020

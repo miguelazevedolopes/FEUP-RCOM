@@ -40,7 +40,7 @@ int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *
 
 int sendSupervisionFrame(int fd, int user, unsigned char controlField);
 
-int receiveSupervisionFrame(int fd, unsigned char responseControlField);
+int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned char responseControlField);
 
 int llopen(unsigned char *port, int user);
 
