@@ -7,6 +7,28 @@ void alarmHandler() // atende alarme
     try++;
 }
 
+void configureAlarm()
+{
+    struct sigaction action;
+    action.sa_handler = alarmHandler;
+
+    if (sigemptyset(&action.sa_mask) == -1)
+    {
+        perror("sigemptyset");
+        exit(-1);
+    }
+
+    action.sa_flags = 0; //
+
+    if (sigaction(SIGALRM, &action, NULL) != 0)
+    {
+        perror("sigaction");
+        exit(-1);
+    }
+    flag = 1;
+    try = 1; //restarting values
+}
+
 int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *frame)
 {
     frame[0] = FLAG;
@@ -33,7 +55,6 @@ int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *
 
 int sendSupervisionFrame(int fd, int user, unsigned char controlField)
 {
-
     unsigned char frameToSend[SUPERVISION_FRAME_SIZE];
 
     if (user == TRANSMITTER)
@@ -44,12 +65,13 @@ int sendSupervisionFrame(int fd, int user, unsigned char controlField)
     {
         createSuperVisionFrame(RECEIVER, controlField, frameToSend); //Creates the frame to send
     }
-
     enum state st = START;
     unsigned char responseByte;
+    configureAlarm();
 
     while (try <= NUMBER_ATTEMPTS && st != STOP)
     {
+
         if (flag)
         {
             for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
@@ -62,6 +84,7 @@ int sendSupervisionFrame(int fd, int user, unsigned char controlField)
             }
             alarm(ALARM_WAIT_TIME);
             flag = 0;
+            printf("Escreveu. State: %d\n", st);
             st = START;
         }
         if (read(fd, &responseByte, 1) < 0)
@@ -83,13 +106,17 @@ int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned
     unsigned char responseBuffer;
     while (st != STOP)
     {
-        if (read(fd, &responseBuffer, 1) < 0)
-            printf("Error when reading\n");
+        printf("Entrou\n");
+
+        read(fd, &responseBuffer, 1);
+
+        printf("Nao está preso no read\n");
         st = supervisionEventHandler(responseBuffer, st, l1.frame);
-        if (st==STOP && expectedControlField != l1.frame[2])
+        if (st == STOP && expectedControlField != l1.frame[2])
         {
             printf("Didn't expect this frame. Got %x but expected %x", l1.frame[2], expectedControlField);
         }
+        printf("Leu. State: %d\n", st);
     }
 
     if (responseControlField == NONE)
@@ -103,7 +130,7 @@ int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned
     {
         write(fd, &(frameToSend[i]), 1);
     }
-
+    printf("Escreveu.\n");
     return 0;
 }
 
@@ -132,7 +159,7 @@ int llopen(unsigned char *port, int user)
     l1.newtio.c_lflag = 0;
 
     l1.newtio.c_cc[VTIME] = 0; /* inter-unsigned character timer unused */
-    l1.newtio.c_cc[VMIN] = 1;  /* blocking read until 5 unsigned chars received */
+    l1.newtio.c_cc[VMIN] = 1;  /* blocking read until 1 unsigned chars received */
 
     tcflush(fd, TCIOFLUSH);
 
@@ -144,8 +171,6 @@ int llopen(unsigned char *port, int user)
 
     if (user == TRANSMITTER)
     {
-
-        (void)signal(SIGALRM, alarmHandler); //Alarm setup
 
         if (sendSupervisionFrame(fd, TRANSMITTER, SET) < 0)
         { //Sends the frame to the receiver
@@ -164,24 +189,28 @@ int llopen(unsigned char *port, int user)
 
 int llclose(int fd, int user)
 {
-
     if (user == TRANSMITTER)
     {
-
-        (void)signal(SIGALRM, alarmHandler); //Alarm setup
-
+        printf("Entrou\n");
         if (sendSupervisionFrame(fd, TRANSMITTER, DISC) < 0)
         { //Sends the frame to the receiver
             printf("No response received. Gave up after %d tries", NUMBER_ATTEMPTS);
             exit(1);
         }
+        printf("Enviou\n");
         receiveSupervisionFrame(fd, DISC, UA);
+        printf("Enviou2\n");
     }
     else if (user == RECEIVER)
     {
-        receiveSupervisionFrame(fd, DISC, DISC);
-        receiveSupervisionFrame(fd, UA, NONE);
+        printf("Entrou\n");
+        receiveSupervisionFrame(fd, DISC, NONE);
+        printf("Enviou\n");
+        sendSupervisionFrame(fd, RECEIVER, DISC);
+        printf("Enviou2\n");
     }
+
+    close(fd);
 }
 
 unsigned char createBCC2(int dataSize)
@@ -394,9 +423,7 @@ int llwrite(int fd, unsigned char *buffer, int length)
     unsigned char byteRead;
     enum state st = START;
 
-    (void)signal(SIGALRM, alarmHandler); //Alarm setup
-    flag = 1;
-    try = 1; //restarting values
+    configureAlarm();
     int stop = FALSE;
 
     unsigned char supervisionFrame[SUPERVISION_FRAME_SIZE];

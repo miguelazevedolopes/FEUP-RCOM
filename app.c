@@ -226,6 +226,7 @@ int receiveFile()
             sequenceNumber = (sequenceNumber + 1) % 255;
             break;
         case CF_END:
+
             stop = TRUE;
             break;
         default:
@@ -317,8 +318,7 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-
-    //sendFile("pinguim.gif");
-    receiveFile();
+    sendFile("pinguim.gif");
+    //receiveFile();
     return 0;
 }
