@@ -209,7 +209,6 @@ int llclose(int fd, int user)
         sendSupervisionFrame(fd, RECEIVER, DISC);
         printf("Enviou2\n");
     }
-
     close(fd);
 }
 
