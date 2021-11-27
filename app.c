@@ -193,7 +193,7 @@ int receiveFile()
 
     if (fd < 0)
     {
-        printf("Error opening protocol on the transmitter side.\n");
+        printf("Error opening protocol on the receiver side.\n");
         return -1;
     }
     else
@@ -209,7 +209,10 @@ int receiveFile()
     {
         sizeRead = llread(fd, buffer);
         if (sizeRead < 0)
-            printf("Error reading data package");
+        {
+            printf("Error reading data package\n");
+            return -1;
+        }
         packageType = readPackageData(sequenceNumber, buffer, packageData);
         switch (packageType)
         {
@@ -238,12 +241,12 @@ int receiveFile()
         printf("Receiver protocol closed!\n");
 }
 
-int sendFile(char *fileToSend)
+int sendFile(const char *fileToSend)
 {
     FILE *fp = fopen(fileToSend, "r");
     if (fp == NULL)
     {
-        perror("Error in opening file");
+        perror("Error in opening file\n");
         return (-1);
     }
 
@@ -267,10 +270,10 @@ int sendFile(char *fileToSend)
     unsigned char data[PACKAGE_DATA_SIZE];
 
     int packageSize = createControlPackage(CF_START, package);
-    printf("Criou pacote de controlo\n");
     if (llwrite(fd, package, packageSize) == -1)
     {
-        printf("Error when writing the START control package");
+        printf("Error when writing the START control package\n");
+        return -1;
     }
 
     int sequenceNumber = 0;
@@ -286,9 +289,9 @@ int sendFile(char *fileToSend)
 
                 if (llwrite(fd, package, packageSize) == -1)
                 {
-                    printf("Error when writing the last data package");
+                    printf("Error when writing the last data package\n");
+                    return -1;
                 }
-                printf("Ultimo pacote foi escrito\n");
                 break;
             }
             else
@@ -297,7 +300,8 @@ int sendFile(char *fileToSend)
 
         if (llwrite(fd, package, packageSize) == -1)
         {
-            printf("Error when writing the DATA control package");
+            printf("Error when writing the DATA control package\n");
+            return -1;
         }
         sequenceNumber = (sequenceNumber + 1) % 255;
     }
@@ -306,7 +310,8 @@ int sendFile(char *fileToSend)
 
     if (llwrite(fd, package, packageSize) == -1)
     {
-        printf("Error when writing the END control package");
+        printf("Error when writing the END control package\n");
+        return -1;
     }
 
     fclose(fp);
@@ -318,7 +323,18 @@ int sendFile(char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
-    sendFile("pinguim.gif");
-    //receiveFile();
+    if (strcmp("receiver", argv[1]) == 0 && argc == 2)
+    {
+        receiveFile();
+    }
+    else if (strcmp("transmitter", argv[1]) == 0 && argc == 3)
+    {
+        sendFile(argv[2]);
+    }
+    else
+    {
+        printf("Usage: %s transmitter filename or %s receiver\n", argv[0], argv[0]);
+        return 1;
+    }
     return 0;
 }
