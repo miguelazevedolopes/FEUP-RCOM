@@ -38,7 +38,7 @@ void alarmHandler();
 
 int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *frame);
 
-int sendSupervisionFrame(int fd, int user, unsigned char controlField);
+int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned char expectedResponse);
 
 int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned char responseControlField);
 

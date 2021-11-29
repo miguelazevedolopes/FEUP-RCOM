@@ -53,7 +53,7 @@ int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *
     frame[4] = FLAG;
 }
 
-int sendSupervisionFrame(int fd, int user, unsigned char controlField)
+int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned char expectedResponse)
 {
     unsigned char frameToSend[SUPERVISION_FRAME_SIZE];
 
@@ -86,14 +86,19 @@ int sendSupervisionFrame(int fd, int user, unsigned char controlField)
             flag = 0;
             st = START;
         }
+        if (expectedResponse == NONE)
+            break;
         read(fd, &responseByte, 1);
         st = supervisionEventHandler(responseByte, st, l1.frame);
     }
     alarm(0);
+
     if (try > NUMBER_ATTEMPTS)
     {
         return -1;
     }
+    if (expectedResponse != NONE && l1.frame[2] != expectedResponse)
+        printf("Error: wasn't expecting this response.\n");
     return 0;
 }
 
@@ -167,7 +172,7 @@ int llopen(unsigned char *port, int user)
 
     if (user == TRANSMITTER)
     {
-        if (sendSupervisionFrame(fd, TRANSMITTER, SET) < 0)
+        if (sendSupervisionFrame(fd, TRANSMITTER, SET, UA) < 0)
         { //Sends the frame to the receiver
             printf("No response received. Gave up after %d tries\n", NUMBER_ATTEMPTS);
             return -1;
@@ -189,12 +194,12 @@ int llclose(int fd, int user)
 {
     if (user == TRANSMITTER)
     {
-        if (sendSupervisionFrame(fd, TRANSMITTER, DISC) < 0)
+        if (sendSupervisionFrame(fd, TRANSMITTER, DISC, DISC) < 0)
         { //Sends the frame to the receiver
             printf("No response received. Gave up after %d tries", NUMBER_ATTEMPTS);
             return -1;
         }
-        if (receiveSupervisionFrame(fd, DISC, UA) < 0)
+        if (sendSupervisionFrame(fd, TRANSMITTER, UA, NONE) < 0)
         {
             printf("No response received. Gave up after %d tries\n", NUMBER_ATTEMPTS);
             return -1;
@@ -202,12 +207,12 @@ int llclose(int fd, int user)
     }
     else if (user == RECEIVER)
     {
-        if (receiveSupervisionFrame(fd, DISC, NONE) < 0)
+        if (receiveSupervisionFrame(fd, DISC, DISC) < 0)
         {
             printf("No response received. Gave up after %d tries\n", NUMBER_ATTEMPTS);
             return -1;
         };
-        if (sendSupervisionFrame(fd, RECEIVER, DISC))
+        if (receiveSupervisionFrame(fd, UA, NONE))
         {
             printf("No response received. Gave up after %d tries\n", NUMBER_ATTEMPTS);
             return -1;
