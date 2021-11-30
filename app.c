@@ -250,7 +250,8 @@ int sendFile(const char *fileToSend)
         return (-1);
     }
 
-    f.name = fileToSend;
+    f.name = (unsigned char *)malloc(sizeof(fileToSend));
+    strcpy(f.name, fileToSend);
 
     fseek(fp, 0, SEEK_END);
     f.size = (int)ftell(fp);
