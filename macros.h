@@ -24,14 +24,14 @@
 
 #define NONE 0xFF
 
-#define NUMBER_ATTEMPTS 3
+#define NUMBER_ATTEMPTS 5
 #define ALARM_WAIT_TIME 5
 
 #define DATA_START 4
 #define ESCAPE 0x7D
 
 #define CONTROL_FIELD_0 0x00 //00000000
-#define CONTROL_FIELD_1 0x40 //01000000ç
+#define CONTROL_FIELD_1 0x40 //01000000
 
 #define RECEIVER_PORT "/dev/ttyS11"
 #define TRANSMITTER_PORT "/dev/ttyS10"
