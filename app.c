@@ -3,9 +3,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "macros.h"
 #include "protocol.c"
+
+int packagesSent = 0;
 
 enum CPType
 {
@@ -243,6 +246,9 @@ int receiveFile()
 
 int sendFile(const char *fileToSend)
 {
+    int count = 0;
+    int packagesCreated = 0;
+
     FILE *fp = fopen(fileToSend, "r");
     if (fp == NULL)
     {
@@ -271,50 +277,66 @@ int sendFile(const char *fileToSend)
     unsigned char data[PACKAGE_DATA_SIZE];
 
     int packageSize = createControlPackage(CF_START, package);
-    if (llwrite(fd, package, packageSize) == -1)
+    packagesCreated++;
+    printf("Initial file size: %d bytes\n", f.size);
+
+    if ((packagesSent = llwrite(fd, package, packageSize)) == -1)
     {
         printf("Error when writing the START control package\n");
         return -1;
     }
+    else
+        count += packagesSent;
 
     int sequenceNumber = 0;
 
     while (1)
     {
+
         int sizeRead = fread(data, 1, PACKAGE_DATA_SIZE, fp);
         packageSize = createDataPackage(sequenceNumber, package, data, sizeRead);
+        packagesCreated++;
         if (sizeRead != PACKAGE_DATA_SIZE)
         {
             if (feof(fp))
             {
 
-                if (llwrite(fd, package, packageSize) == -1)
+                if ((packagesSent = llwrite(fd, package, packageSize)) == -1)
                 {
-                    printf("Error when writing the last data package\n");
+                    printf("Error when writing the last control package\n");
                     return -1;
                 }
+                else
+                    count += packagesSent;
+
                 break;
             }
             else
                 return -1;
         }
 
-        if (llwrite(fd, package, packageSize) == -1)
+        if ((packagesSent = llwrite(fd, package, packageSize)) == -1)
         {
-            printf("Error when writing the DATA control package\n");
+            printf("Error when writing a DATA control package\n");
             return -1;
         }
+        else
+            count += packagesSent;
         sequenceNumber = (sequenceNumber + 1) % 255;
     }
 
     packageSize = createControlPackage(CF_END, package);
-
-    if (llwrite(fd, package, packageSize) == -1)
+    packagesCreated++;
+    if ((packagesSent = llwrite(fd, package, packageSize)) == -1)
     {
         printf("Error when writing the END control package\n");
         return -1;
     }
-
+    else
+        count += packagesSent;
+    printf("Received file size: %d bytes\n", f.size);
+    printf("Packages created: %d\n", packagesCreated);
+    printf("Packages actually sent: %d\n", count);
     fclose(fp);
 
     printf("Finished sending file\n");
@@ -324,18 +346,28 @@ int sendFile(const char *fileToSend)
 
 int main(int argc, char const *argv[])
 {
+
+    clock_t start, end;
+    double time;
+
     if (strcmp("receiver", argv[1]) == 0 && argc == 2)
     {
         receiveFile();
     }
     else if (strcmp("transmitter", argv[1]) == 0 && argc == 3)
     {
+        start = clock();
         sendFile(argv[2]);
+        end = clock();
+        time = ((double)(end - start)) / CLOCKS_PER_SEC;
+        printf("Execution time: %f\n", time);
+        printf("Protocol - average time per package: %f\n", timePerPackage / packagesSent);
     }
     else
     {
         printf("Usage: %s transmitter filename or %s receiver\n", argv[0], argv[0]);
         return 1;
     }
+
     return 0;
 }

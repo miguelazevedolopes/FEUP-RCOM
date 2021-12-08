@@ -1,5 +1,8 @@
 #include "protocol.h"
 
+clock_t startPackage, endPackage;
+double timePerPackage;
+
 void alarmHandler() // atende alarme
 {
     printf("Try: # %d\n", try);
@@ -56,6 +59,7 @@ int createSuperVisionFrame(int user, unsigned char controlField, unsigned char *
 
 int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned char expectedResponse)
 {
+    startPackage = clock();
     unsigned char frameToSend[SUPERVISION_FRAME_SIZE];
 
     if (user == TRANSMITTER)
@@ -93,7 +97,8 @@ int sendSupervisionFrame(int fd, int user, unsigned char controlField, unsigned 
         st = supervisionEventHandler(responseByte, st, l1.frame);
     }
     alarm(0);
-
+    endPackage = clock();
+    timePerPackage += ((double)(endPackage - startPackage)) / CLOCKS_PER_SEC;
     if (try > NUMBER_ATTEMPTS)
     {
         return -1;
@@ -116,7 +121,7 @@ int receiveSupervisionFrame(int fd, unsigned char expectedControlField, unsigned
         st = supervisionEventHandler(responseBuffer, st, l1.frame);
         if (st == STOP && expectedControlField != l1.frame[2])
         {
-            printf("Didn't expect this frame. Got %x but expected %x", l1.frame[2], expectedControlField);
+            printf("Didn't expect this frame. Trying again.\n");
         }
     }
     alarm(0);
@@ -384,8 +389,6 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
                 st = C_RCV;
                 supervisionFrame[2] = byteRead;
             }
-            else
-                printf("sequence number fodeu %x", byteRead);
         }
         else if (l1.sequenceNumber == 1)
         {
@@ -394,8 +397,6 @@ enum state supervisionEventHandler(unsigned char byteRead, enum state st, unsign
                 st = C_RCV;
                 supervisionFrame[2] = byteRead;
             }
-            else
-                printf("sequence number fodeu %x", byteRead);
         }
         break;
 
@@ -437,46 +438,40 @@ int llwrite(int fd, unsigned char *buffer, int length)
     unsigned char byteRead;
     enum state st = START;
 
+    int count = 0;
     configureAlarm();
     int stop = FALSE;
 
     unsigned char supervisionFrame[SUPERVISION_FRAME_SIZE];
-    printf("Sequence number: %d", l1.sequenceNumber);
     while (try <= NUMBER_ATTEMPTS && stop == FALSE)
     { //espera pela supervision enviada pelo recetor
         if (flag)
         {
-
+            count++;
             for (int i = 0; i < stuffedFrameSize; i++)
             { //resending information frame byte per byte
                 if (write(fd, &l1.frame[i], 1) < 0)
                 {
                     printf("Error writing information frame\n");
                 }
-                printf("Byte sent: %x\n", l1.frame[i]);
             }
             alarm(ALARM_WAIT_TIME);
             flag = 0;
         }
         read(fd, &byteRead, 1);
-        printf("Byte read: %x\n", byteRead);
         st = supervisionEventHandler(byteRead, st, supervisionFrame);
-        printf("State: %d\n", st);
         if (st == STOP)
         {
-            printf("entrou\n");
             controlField = supervisionFrame[2];
             if ((controlField == RR0) || (controlField == RR1))
             {             //if control field != 0, supervision frame was successfull read
                 alarm(0); // cancela alarme
-                printf("rr0\n");
                 stop = TRUE;
                 break;
             }
             else if ((controlField == REJ0) || (controlField == REJ1))
             {
                 alarm(0);
-                printf("rej1\n");
                 flag = 1;
                 st = START;
             }
@@ -492,7 +487,7 @@ int llwrite(int fd, unsigned char *buffer, int length)
         l1.sequenceNumber = 0;
     else
         return -1;
-    return stuffedFrameSize; // retorno : número de carateres escritos
+    return count; // retorno : número de carateres escritos
 }
 
 enum state informationEventHandler(unsigned char byteRead, enum state st, int *buffedFrameSize)
@@ -575,23 +570,6 @@ enum state informationEventHandler(unsigned char byteRead, enum state st, int *b
     return st;
 }
 
-// quando recetor lê information frame enviada por emissor
-// int readInformationFrame(int fd)
-// {
-//     unsigned char byteRead;
-//     enum state st = START;
-//     int buffedFrameSize;
-//     while (st != STOP)
-//     {
-//         if (read(fd, &byteRead, 1) < 0)
-//         {
-//             printf("alarme tocou") return -1;
-//         }
-//         st = informationEventHandler(byteRead, st, &buffedFrameSize);
-//     }
-//     return buffedFrameSize;
-// }
-
 int checkBCC2(int numBytesAfterDestuffing)
 {
     int dataSize = numBytesAfterDestuffing - 6;
@@ -658,7 +636,7 @@ int getSequenceNumber()
 }
 
 int saveDataInBuffer(unsigned char *buffer, int numBytesAfterDestuffing)
-{ //só passamos data bytes para buffer
+{
     int index = 0;
     for (int i = DATA_START; i < (numBytesAfterDestuffing - 2); i++)
     {
@@ -672,7 +650,7 @@ int sendConfirmation(int fd, unsigned char responseField)
 {
     unsigned char supervisionFrame[SUPERVISION_FRAME_SIZE];
     supervisionFrame[0] = FLAG;
-    supervisionFrame[1] = 0x03; //valor fixo pq é resposta enviada pelo recetor
+    supervisionFrame[1] = 0x03;
     supervisionFrame[2] = responseField;
     supervisionFrame[3] = supervisionFrame[1] ^ supervisionFrame[2];
     supervisionFrame[4] = FLAG;
@@ -680,7 +658,6 @@ int sendConfirmation(int fd, unsigned char responseField)
     for (int i = 0; i < SUPERVISION_FRAME_SIZE; i++)
     {
         write(fd, &(supervisionFrame[i]), 1);
-        printf("Byte sent: %x\n", supervisionFrame[i]);
     }
     return 0;
 }
@@ -699,7 +676,6 @@ int llread(int fd, unsigned char *buffer)
     int send = FALSE;
 
     configureAlarm();
-    printf("Sequence number: %d", l1.sequenceNumber);
     while (!doneReadingFrame && try <= NUMBER_ATTEMPTS)
     {
 
@@ -707,19 +683,13 @@ int llread(int fd, unsigned char *buffer)
 
         if (read(fd, &byteRead, 1) < 0)
         {
-            printf("Nao leu\n");
+            printf("Error reading from port.\n");
         };
 
-        //if(flag) st=START;
-        //      printf("BYTE: %x\n",byteRead);
-
         st = informationEventHandler(byteRead, st, &numBytesRead);
-        printf("Byte read: %x \n", byteRead);
-        printf("ST: %x\n", st);
 
         if (st == STOP)
         {
-            printf("ultima vez a entrar\n");
             alarm(0);
             numBytesAfterDestuffing = byteDestuffing(numBytesRead);
             if (checkBCC2(numBytesAfterDestuffing) == TRUE)
@@ -728,7 +698,6 @@ int llread(int fd, unsigned char *buffer)
                 sequenceNumber = getSequenceNumber();
                 if (checkDuplicatedFrame(sequenceNumber) == TRUE)
                 {
-                    printf("bcc ok duplicated frame \n");
                     send = TRUE;
                     flag = 1;
                     st = START;
@@ -736,9 +705,7 @@ int llread(int fd, unsigned char *buffer)
                 }
                 else if (checkDuplicatedFrame(sequenceNumber) == FALSE)
                 {
-                    //printf("Tou aqui 2\n");
                     send = TRUE;
-                    printf("bcc ok frame ok \n");
                     saveDataInBuffer(buffer, numBytesAfterDestuffing);
                     doneReadingFrame = TRUE;
                     responseField = nextFrame(sequenceNumber); //trama sucessfully read
@@ -747,7 +714,6 @@ int llread(int fd, unsigned char *buffer)
                 {
                     send = TRUE;
                     responseField = resendFrame(sequenceNumber); //tinha um erro tem de ser
-                    printf("maroto\n");
                     flag = 1;
                     st = START;
                 }
@@ -758,7 +724,6 @@ int llread(int fd, unsigned char *buffer)
                 sequenceNumber = getSequenceNumber();
                 if (checkDuplicatedFrame(sequenceNumber) == TRUE)
                 {
-                    printf("bcc wrong duplicated frame\n");
                     flag = 1;
                     send = TRUE;
                     st = START;
@@ -766,7 +731,6 @@ int llread(int fd, unsigned char *buffer)
                 }
                 else
                 {
-                    printf("bcc wrong frame wrong \n");
                     send = TRUE;
                     flag = 1;
                     st = START;
@@ -774,11 +738,8 @@ int llread(int fd, unsigned char *buffer)
                 }
             }
         }
-        //printf("RF: %x\n",responseField);
         if (send == TRUE)
         {
-            printf("SN: %d\n", getSequenceNumber());
-            printf("RF: %x\n and SN.L1: %d", responseField, l1.sequenceNumber);
             if (sendConfirmation(fd, responseField) != 0)
                 printf("Problem sending supervision frame \n");
             send = FALSE;
@@ -787,6 +748,5 @@ int llread(int fd, unsigned char *buffer)
 
     if (try > NUMBER_ATTEMPTS)
         return -1;
-    //sends response
     return (numBytesAfterDestuffing - 6); // F A C BCC1 DATA BCC2 F => information frame
 }
